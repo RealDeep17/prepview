@@ -112,7 +112,7 @@ impl LanProjectionManager {
                 let _ = shutdown_rx.await;
             });
             if let Err(error) = server.await {
-                log::error!("cassini lan projection failed: {error}");
+                log::error!("prepview lan projection failed: {error}");
             }
         });
 
@@ -174,7 +174,7 @@ fn build_public_url(host: IpAddr, token: &str) -> String {
 async fn api_health() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "status": "ok",
-        "product": "cassini",
+        "product": "prepview",
     }))
 }
 

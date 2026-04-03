@@ -192,12 +192,17 @@ impl HyperliquidConnector {
             .ok_or_else(|| AppError::message("Hyperliquid allMids response was not an object"))
     }
 
-    async fn fetch_predicted_fundings(&self) -> AppResult<Vec<HyperliquidFundingRow>> {
+    async fn fetch_predicted_fundings(&self, dex: Option<&str>) -> AppResult<Vec<HyperliquidFundingRow>> {
+        let mut payload = serde_json::json!({ "type": "predictedFundings" });
+        if let Some(d) = dex {
+            if d != "HL" {
+                payload.as_object_mut().unwrap().insert("dex".to_string(), serde_json::Value::String(d.to_string()));
+            }
+        }
+        log::info!("HL predictedFundings payload: {}", serde_json::to_string(&payload).unwrap());
         self.client
             .post(HYPERLIQUID_INFO_URL)
-            .json(&serde_json::json!({
-                "type": "predictedFundings",
-            }))
+            .json(&payload)
             .send()
             .await?
             .error_for_status()?
@@ -375,7 +380,7 @@ impl ExchangeConnector for HyperliquidConnector {
             .collect::<HashSet<_>>();
 
         Ok(self
-            .fetch_predicted_fundings()
+            .fetch_predicted_fundings(None)
             .await?
             .into_iter()
             .filter_map(|row| {
@@ -432,13 +437,18 @@ impl ExchangeConnector for HyperliquidConnector {
 
     async fn fetch_market_quote(&self, exchange_symbol: &str) -> AppResult<MarketQuote> {
         let lookup_symbol = hyperliquid_exchange_symbol(exchange_symbol);
-        // Hyperliquid's API crashes with HTTP 500 if the provided dex name is uppercase
         let dex_name = lookup_symbol.split_once(':').map(|(d, _)| d.to_lowercase());
         let dex = dex_name.as_deref();
+        
+        log::info!("Fetching quote for: {}, lookup: {}, dex: {:?}", exchange_symbol, lookup_symbol, dex);
+
         let (payload, predicted_fundings) = tokio::try_join!(
             self.fetch_meta_and_asset_contexts(dex),
-            self.fetch_predicted_fundings()
-        )?;
+            self.fetch_predicted_fundings(dex)
+        ).map_err(|e| {
+            log::error!("try_join failed inside fetch_market_quote! Error: {:?}", e);
+            e
+        })?;
         let markets = parse_hyperliquid_markets(&payload, self);
         let market = markets
             .into_iter()

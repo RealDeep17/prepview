@@ -97,7 +97,7 @@ fn build_services(app: &tauri::AppHandle) -> AppResult<Arc<AppServices>> {
     let app_data_dir = app.path().app_data_dir()?;
     fs::create_dir_all(&app_data_dir)?;
 
-    let database_path = app_data_dir.join("cassini.db");
+    let database_path = app_data_dir.join("prepview.db");
     let secrets_dir = app_data_dir.join("secrets");
     let repository = PortfolioRepository::open(
         database_path.clone(),
@@ -111,7 +111,7 @@ fn build_services(app: &tauri::AppHandle) -> AppResult<Arc<AppServices>> {
         lan_manager: Mutex::new(LanProjectionManager::default()),
         auto_sync_status: Mutex::new(AutoSyncStatus::default()),
         http_client: reqwest::Client::builder()
-            .user_agent("cassini/0.1.0")
+            .user_agent("prepview/0.1.0")
             .build()?,
         secrets_dir,
         sync_gate: AsyncMutex::new(()),
@@ -127,7 +127,7 @@ fn start_background_sync_scheduler(services: Arc<AppServices>) {
         state.last_error = None;
     }) {
         log::info!(
-            "cassini auto-sync scheduler armed: every {}s, next at {:?}",
+            "prepview auto-sync scheduler armed: every {}s, next at {:?}",
             status.interval_seconds,
             status.next_scheduled_at
         );
@@ -214,18 +214,18 @@ fn start_background_sync_scheduler(services: Arc<AppServices>) {
             let _ = services.emit_snapshot();
 
             if let Err(error) = result {
-                log::error!("cassini auto-sync cycle failed: {error}");
+                log::error!("prepview auto-sync cycle failed: {error}");
             }
             for warning in &market_refresh_warnings {
-                log::warn!("cassini market catalog refresh warning: {warning}");
+                log::warn!("prepview market catalog refresh warning: {warning}");
             }
             if let Ok(summary) = &quote_refresh {
                 for warning in &summary.warnings {
-                    log::warn!("cassini quote refresh warning: {warning}");
+                    log::warn!("prepview quote refresh warning: {warning}");
                 }
             }
             if let Err(error) = quote_refresh {
-                log::error!("cassini quote refresh failed: {error}");
+                log::error!("prepview quote refresh failed: {error}");
             }
 
             drop(guard);
