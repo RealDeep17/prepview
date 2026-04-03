@@ -1,14 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <!-- Deep Solid Space Background, no gradients -->
-  <rect width="1024" height="1024" rx="224" fill="#0E0B16" />
+  <!-- Classic Apple HIG Dark Surface -->
+  <rect width="1024" height="1024" rx="230" fill="#1C1C1E" />
   
   <!-- Solid Geometric Three-Bar Graph -->
-  <!-- Left Bar: Short, Solid Blue -->
-  <rect x="220" y="580" width="120" height="200" rx="30" fill="#3B82F6" />
+  <!-- Left Bar: Short, Apple System Cyan -->
+  <rect x="220" y="580" width="120" height="200" rx="30" fill="#32ADE6" />
   
-  <!-- Middle Bar: Medium, Solid Purple -->
-  <rect x="452" y="420" width="120" height="360" rx="30" fill="#A855F7" />
+  <!-- Middle Bar: Medium, Apple System Purple -->
+  <rect x="452" y="420" width="120" height="360" rx="30" fill="#AF52DE" />
   
-  <!-- Right Bar: Tall, Solid Pink/Rose -->
-  <rect x="684" y="240" width="120" height="540" rx="30" fill="#F43F5E" />
+  <!-- Right Bar: Tall, Apple System Pink -->
+  <rect x="684" y="240" width="120" height="540" rx="30" fill="#FF2D55" />
 </svg>
