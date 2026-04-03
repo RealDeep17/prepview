@@ -1191,7 +1191,7 @@ mod tests {
     }
 
     fn open_test_services() -> (Arc<AppServices>, PathBuf) {
-        let root = std::env::temp_dir().join(format!("cassini-commands-test-{}", Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("prepview-commands-test-{}", Uuid::new_v4()));
         std::fs::create_dir_all(&root).expect("test directory should exist");
         let repository = PortfolioRepository::open(root.join("portfolio.db"), "test-key".into())
             .expect("repository should open");

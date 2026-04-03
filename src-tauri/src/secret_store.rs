@@ -28,7 +28,7 @@ pub fn database_key(secrets_dir: &Path, database_path: &Path) -> AppResult<Strin
         backup_legacy_database(database_path)?;
     }
 
-    let key = format!("cassini-{}", Uuid::new_v4());
+    let key = format!("prepview-{}", Uuid::new_v4());
     write_secret_file(&key_path, &key)?;
     Ok(key)
 }

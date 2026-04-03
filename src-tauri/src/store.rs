@@ -3419,7 +3419,7 @@ fn validate_position_against_market(
     leverage: f64,
 ) -> AppResult<()> {
     // We explicitly do not enforce min_quantity or quantity_step here.
-    // Cassini portfolio tracking allows users to mock fractional or micro positions
+    // PrepView portfolio tracking allows users to mock fractional or micro positions
     // even if the real exchange strictly operates on non-fractional contract integers.
 
     if let Some(max_leverage) = market.max_leverage {
@@ -3536,7 +3536,7 @@ mod tests {
     };
 
     fn open_test_repo() -> (PortfolioRepository, PathBuf) {
-        let root = std::env::temp_dir().join(format!("cassini-store-test-{}", Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("prepview-store-test-{}", Uuid::new_v4()));
         std::fs::create_dir_all(&root).expect("test directory should exist");
         let repository = PortfolioRepository::open(root.join("portfolio.db"), "test-key".into())
             .expect("repository should open");

@@ -393,7 +393,8 @@ impl ExchangeConnector for HyperliquidConnector {
                 row.1
                     .into_iter()
                     .find(|item| item.0 == "HlPerp")
-                    .and_then(|(_, details)| {
+                    .and_then(|(_, details_opt)| details_opt)
+                    .and_then(|details| {
                         parse_decimal(Some(details.funding_rate.as_str())).map(|rate| {
                             FundingEntry {
                                 symbol: self.normalize_symbol(&row.0),
@@ -410,17 +411,16 @@ impl ExchangeConnector for HyperliquidConnector {
         let dexs = self.fetch_perp_dexs().await.unwrap_or_default();
         let mut markets = Vec::new();
 
-        // If fetch_perp_dexs fails or is empty, fallback to main dex
-        if dexs.is_empty() {
-            if let Ok(payload) = self.fetch_meta_and_asset_contexts(None).await {
-                markets.extend(parse_hyperliquid_markets(&payload, self));
-            }
-        } else {
+        // Always fetch the main DEX ("HL") because perpDexs might only contain HIP3 dexes.
+        if let Ok(payload) = self.fetch_meta_and_asset_contexts(None).await {
+            markets.extend(parse_hyperliquid_markets(&payload, self));
+        }
+
+        // Fetch additional HIP3 DEXs
+        if !dexs.is_empty() {
             const ALLOWED_HIP3: [&str; 1] = ["xyz"];
             let futures = dexs.iter().filter_map(|dex| {
-                if dex.name == "HL" {
-                    Some(self.fetch_meta_and_asset_contexts(None))
-                } else if ALLOWED_HIP3.contains(&dex.name.to_lowercase().as_str()) {
+                if ALLOWED_HIP3.contains(&dex.name.to_lowercase().as_str()) {
                     Some(self.fetch_meta_and_asset_contexts(Some(dex.name.as_str())))
                 } else {
                     None
@@ -514,10 +514,10 @@ impl ExchangeConnector for HyperliquidConnector {
                         let _ = sender.send(prices);
                     }
                     Ok(Err(error)) => {
-                        log::warn!("cassini hyperliquid price poll failed: {error}");
+                        log::warn!("prepview hyperliquid price poll failed: {error}");
                     }
                     Err(_) => {
-                        log::warn!("cassini hyperliquid price poll timed out");
+                        log::warn!("prepview hyperliquid price poll timed out");
                     }
                 }
 
@@ -826,10 +826,10 @@ impl ExchangeConnector for BlofinConnector {
                         let _ = sender.send(prices);
                     }
                     Ok(Err(error)) => {
-                        log::warn!("cassini blofin mark-price poll failed: {error}");
+                        log::warn!("prepview blofin mark-price poll failed: {error}");
                     }
                     Err(_) => {
-                        log::warn!("cassini blofin mark-price poll timed out");
+                        log::warn!("prepview blofin mark-price poll timed out");
                     }
                 }
 
@@ -1315,7 +1315,7 @@ struct HyperliquidAssetContext {
     mark_px: Option<String>,
 }
 
-type HyperliquidFundingVenue = (String, HyperliquidFundingDetails);
+type HyperliquidFundingVenue = (String, Option<HyperliquidFundingDetails>);
 type HyperliquidFundingRow = (String, Vec<HyperliquidFundingVenue>);
 
 #[derive(Debug, Deserialize)]

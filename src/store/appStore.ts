@@ -41,9 +41,9 @@ export const useAppStore = create<AppState>((set) => ({
   scopeAccountId: null,
   activeOverlay: null,
   editingPositionId: null,
-  leftPanelOpen:  localStorage.getItem('cassini.lo') !== 'false',
-  rightPanelOpen: localStorage.getItem('cassini.ro') !== 'false',
-  chartOpen:      localStorage.getItem('cassini.co') === 'true',
+  leftPanelOpen:  localStorage.getItem('prepview.lo') !== 'false',
+  rightPanelOpen: localStorage.getItem('prepview.ro') !== 'false',
+  chartOpen:      localStorage.getItem('prepview.co') === 'true',
 
   fetchBootstrap: async () => {
     set((state) => ({
@@ -69,13 +69,13 @@ export const useAppStore = create<AppState>((set) => ({
   }),
   closeOverlay: () => set({ activeOverlay: null, editingPositionId: null }),
   toggleLeftPanel: () => set((s) => {
-    const v = !s.leftPanelOpen; localStorage.setItem('cassini.lo', String(v)); return { leftPanelOpen: v };
+    const v = !s.leftPanelOpen; localStorage.setItem('prepview.lo', String(v)); return { leftPanelOpen: v };
   }),
   toggleRightPanel: () => set((s) => {
-    const v = !s.rightPanelOpen; localStorage.setItem('cassini.ro', String(v)); return { rightPanelOpen: v };
+    const v = !s.rightPanelOpen; localStorage.setItem('prepview.ro', String(v)); return { rightPanelOpen: v };
   }),
   toggleChart: () => set((s) => {
-    const v = !s.chartOpen; localStorage.setItem('cassini.co', String(v)); return { chartOpen: v };
+    const v = !s.chartOpen; localStorage.setItem('prepview.co', String(v)); return { chartOpen: v };
   }),
 }));
 

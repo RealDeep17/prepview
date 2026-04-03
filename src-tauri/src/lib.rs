@@ -250,15 +250,15 @@ pub fn run() {
                 for warning in
                     commands::refresh_supported_exchange_markets_inner(&startup_services).await
                 {
-                    log::warn!("cassini startup market catalog warning: {warning}");
+                    log::warn!("prepview startup market catalog warning: {warning}");
                 }
                 match commands::refresh_portfolio_quotes_inner(&startup_services).await {
                     Ok(summary) => {
                         for warning in &summary.warnings {
-                            log::warn!("cassini startup quote refresh warning: {warning}");
+                            log::warn!("prepview startup quote refresh warning: {warning}");
                         }
                     }
-                    Err(error) => log::error!("cassini startup quote refresh failed: {error}"),
+                    Err(error) => log::error!("prepview startup quote refresh failed: {error}"),
                 }
                 let _ = startup_services.emit_snapshot();
             });

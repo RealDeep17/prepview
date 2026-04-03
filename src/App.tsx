@@ -13,7 +13,7 @@ export default function App() {
 
   useEffect(() => {
     fetchBootstrap();
-    const unlisten = listen('cassini://state-changed', () => {
+    const unlisten = listen('prepview://state-changed', () => {
       fetchBootstrap();
     });
     return () => {
@@ -31,7 +31,7 @@ export default function App() {
   }, [closeOverlay]);
 
   if (loading) {
-    return <div className="loading-screen">Loading Cassini…</div>;
+    return <div className="loading-screen">Loading PrepView…</div>;
   }
 
   if (error) {

@@ -28,7 +28,7 @@ import type {
 
 function assertTauri() {
   if (!(window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__) {
-    throw new Error('Cassini must be run through Tauri. Use `npm run tauri:dev` for local development.');
+    throw new Error('PrepView must be run through Tauri. Use `npm run tauri:dev` for local development.');
   }
 }
 

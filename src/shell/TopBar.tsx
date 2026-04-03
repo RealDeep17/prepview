@@ -96,7 +96,7 @@ export function TopBar() {
 
   return (
     <div className="topbar">
-      <span className="topbar-logo">CASSINI</span>
+      <span className="topbar-logo">PREPVIEW</span>
       <div className="scope-pills">
         <button
           className={`scope-pill${scopeExchange === 'all' ? ' scope-pill--active' : ''}`}
