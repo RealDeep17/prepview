@@ -98,6 +98,8 @@ export interface PortfolioPosition {
   realizedPnl: number;
   feePaid: number;
   fundingPaid: number;
+  takeProfit?: number | null;
+  stopLoss?: number | null;
   openedAt: string;
   notes?: string;
 }
@@ -247,6 +249,8 @@ export interface ManualPositionInput {
   realizedPnl?: number;
   feePaid?: number;
   fundingPaid?: number;
+  takeProfit?: number;
+  stopLoss?: number;
   notes?: string;
 }
 
@@ -267,6 +271,8 @@ export interface UpdateManualPositionInput {
   realizedPnl?: number;
   feePaid?: number;
   fundingPaid?: number;
+  takeProfit?: number;
+  stopLoss?: number;
   notes?: string;
 }
 

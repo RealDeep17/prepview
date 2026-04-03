@@ -66,6 +66,8 @@ export function PositionsPane() {
           <th className="num">Entry</th>
           <th className="num">Mark</th>
           <th className="num">Liq. Price</th>
+          <th className="num">TP</th>
+          <th className="num">SL</th>
           <th className="num">Lev</th>
           <th className="num">Margin Used</th>
           <th className="num">Unrealized P&amp;L</th>
@@ -101,6 +103,12 @@ export function PositionsPane() {
                 {pos.liquidationPrice != null ? fmtCurrency(pos.liquidationPrice) : '—'}
                 {pos.riskSource === 'local_engine' && <span className="risk-chip">est.</span>}
                 {pos.riskSource === 'user_input' && <span className="risk-chip">manual</span>}
+              </td>
+              <td className="num" style={{ color: pos.takeProfit ? 'var(--green)' : undefined }}>
+                {pos.takeProfit != null ? fmtCurrency(pos.takeProfit) : '—'}
+              </td>
+              <td className="num" style={{ color: pos.stopLoss ? 'var(--red)' : undefined }}>
+                {pos.stopLoss != null ? fmtCurrency(pos.stopLoss) : '—'}
               </td>
               <td className="num">{pos.leverage}×</td>
               <td className="num">{pos.marginUsed != null ? fmtCurrency(pos.marginUsed) : '—'}</td>

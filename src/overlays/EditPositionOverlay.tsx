@@ -25,6 +25,8 @@ export function EditPositionOverlay() {
   const [maintenanceMargin, setMaintenanceMargin] = useState('');
   const [feePaid, setFeePaid] = useState('');
   const [fundingPaid, setFundingPaid] = useState('');
+  const [takeProfit, setTakeProfit] = useState('');
+  const [stopLoss, setStopLoss] = useState('');
   const [notes, setNotes] = useState('');
 
   // Close fields
@@ -52,6 +54,8 @@ export function EditPositionOverlay() {
     setMaintenanceMargin(position.maintenanceMargin != null ? String(position.maintenanceMargin) : '');
     setFeePaid(String(position.feePaid));
     setFundingPaid(String(position.fundingPaid));
+    setTakeProfit(position.takeProfit != null ? String(position.takeProfit) : '');
+    setStopLoss(position.stopLoss != null ? String(position.stopLoss) : '');
     setNotes(position.notes ?? '');
   }, [position]);
 
@@ -76,6 +80,8 @@ export function EditPositionOverlay() {
         maintenanceMargin: maintenanceMargin ? parseFloat(maintenanceMargin) : undefined,
         feePaid: feePaid ? parseFloat(feePaid) : undefined,
         fundingPaid: fundingPaid ? parseFloat(fundingPaid) : undefined,
+        takeProfit: takeProfit ? parseFloat(takeProfit) : undefined,
+        stopLoss: stopLoss ? parseFloat(stopLoss) : undefined,
         notes: notes || undefined,
       });
       await fetchBootstrap();
@@ -84,7 +90,7 @@ export function EditPositionOverlay() {
       setError(String(e));
     }
     setSubmitting(false);
-  }, [position, symbol, exchangeSymbol, side, marginMode, quantity, entryPrice, markPrice, leverage, marginUsed, liquidationPrice, maintenanceMargin, feePaid, fundingPaid, notes, fetchBootstrap, closeOverlay]);
+  }, [position, symbol, exchangeSymbol, side, marginMode, quantity, entryPrice, markPrice, leverage, marginUsed, liquidationPrice, maintenanceMargin, feePaid, fundingPaid, takeProfit, stopLoss, notes, fetchBootstrap, closeOverlay]);
 
   const handleClose = useCallback(async () => {
     if (!position) return;
@@ -196,6 +202,17 @@ export function EditPositionOverlay() {
               <div className="form-group">
                 <label className="form-label">Funding Paid</label>
                 <input className="form-input" type="number" value={fundingPaid} onChange={(e) => setFundingPaid(e.target.value)} />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Take Profit</label>
+                <input className="form-input" type="number" value={takeProfit} onChange={(e) => setTakeProfit(e.target.value)} placeholder="Optional" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Stop Loss</label>
+                <input className="form-input" type="number" value={stopLoss} onChange={(e) => setStopLoss(e.target.value)} placeholder="Optional" />
               </div>
             </div>
 

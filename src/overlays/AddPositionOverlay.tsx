@@ -9,9 +9,6 @@ export function AddPositionOverlay() {
   const fetchBootstrap = useAppStore((s) => s.fetchBootstrap);
   const bootstrap = useAppStore((s) => s.bootstrap);
 
-  const manualAccounts = (bootstrap?.accounts ?? []).filter(
-    (a) => a.accountMode === 'manual' || a.accountMode === 'import'
-  );
   const allAccounts = bootstrap?.accounts ?? [];
 
   const [accountId, setAccountId] = useState(allAccounts[0]?.id ?? '');
@@ -28,6 +25,8 @@ export function AddPositionOverlay() {
   const [maintenanceMargin, setMaintenanceMargin] = useState('');
   const [feePaid, setFeePaid] = useState('');
   const [fundingPaid, setFundingPaid] = useState('');
+  const [takeProfit, setTakeProfit] = useState('');
+  const [stopLoss, setStopLoss] = useState('');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -129,6 +128,8 @@ export function AddPositionOverlay() {
         maintenanceMargin: maintenanceMargin ? parseFloat(maintenanceMargin) : undefined,
         feePaid: feePaid ? parseFloat(feePaid) : undefined,
         fundingPaid: fundingPaid ? parseFloat(fundingPaid) : undefined,
+        takeProfit: takeProfit ? parseFloat(takeProfit) : undefined,
+        stopLoss: stopLoss ? parseFloat(stopLoss) : undefined,
         notes: notes || undefined,
       });
       await fetchBootstrap();
@@ -137,7 +138,7 @@ export function AddPositionOverlay() {
       setError(String(e));
     }
     setSubmitting(false);
-  }, [accountId, exchange, exchangeSymbol, symbol, marginMode, side, quantity, entryPrice, markPrice, leverage, marginUsed, liquidationPrice, maintenanceMargin, feePaid, fundingPaid, notes, fetchBootstrap, closeOverlay]);
+  }, [accountId, exchange, exchangeSymbol, symbol, marginMode, side, quantity, entryPrice, markPrice, leverage, marginUsed, liquidationPrice, maintenanceMargin, feePaid, fundingPaid, takeProfit, stopLoss, notes, fetchBootstrap, closeOverlay]);
 
   return (
     <>
@@ -273,6 +274,17 @@ export function AddPositionOverlay() {
           <div className="form-group">
             <label className="form-label">Funding Paid</label>
             <input className="form-input" type="number" value={fundingPaid} onChange={(e) => setFundingPaid(e.target.value)} placeholder="0" />
+          </div>
+        </div>
+
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Take Profit</label>
+            <input className="form-input" type="number" value={takeProfit} onChange={(e) => setTakeProfit(e.target.value)} placeholder="Optional" />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Stop Loss</label>
+            <input className="form-input" type="number" value={stopLoss} onChange={(e) => setStopLoss(e.target.value)} placeholder="Optional" />
           </div>
         </div>
 

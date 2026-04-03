@@ -586,6 +586,8 @@ mod tests {
             realized_pnl: 0.0,
             fee_paid: 0.0,
             funding_paid: 0.0,
+            take_profit: None,
+            stop_loss: None,
             opened_at: Utc::now(),
             notes: None,
         }];
@@ -642,6 +644,8 @@ mod tests {
             realized_pnl: 0.0,
             fee_paid: 2.0,
             funding_paid: 1.0,
+            take_profit: None,
+            stop_loss: None,
             opened_at: Utc::now(),
             notes: None,
         }];
@@ -839,6 +843,8 @@ mod tests {
             realized_pnl: 0.0,
             fee_paid: fee,
             funding_paid: funding,
+            take_profit: None,
+            stop_loss: None,
             opened_at: Utc::now(),
             notes: None,
         }

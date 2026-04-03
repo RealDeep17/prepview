@@ -138,6 +138,8 @@ pub struct PortfolioPosition {
     pub realized_pnl: f64,
     pub fee_paid: f64,
     pub funding_paid: f64,
+    pub take_profit: Option<f64>,
+    pub stop_loss: Option<f64>,
     pub opened_at: DateTime<Utc>,
     pub notes: Option<String>,
 }
@@ -384,6 +386,8 @@ pub struct ManualPositionInput {
     pub realized_pnl: Option<f64>,
     pub fee_paid: Option<f64>,
     pub funding_paid: Option<f64>,
+    pub take_profit: Option<f64>,
+    pub stop_loss: Option<f64>,
     pub notes: Option<String>,
 }
 
@@ -406,6 +410,8 @@ pub struct UpdateManualPositionInput {
     pub realized_pnl: Option<f64>,
     pub fee_paid: Option<f64>,
     pub funding_paid: Option<f64>,
+    pub take_profit: Option<f64>,
+    pub stop_loss: Option<f64>,
     pub notes: Option<String>,
 }
 

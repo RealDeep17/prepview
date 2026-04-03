@@ -380,6 +380,8 @@ impl PortfolioRepository {
         self.ensure_account_column("bonus_fee_deduction_rate", "REAL NOT NULL DEFAULT 0")?;
         self.ensure_account_column("bonus_loss_deduction_rate", "REAL NOT NULL DEFAULT 0")?;
         self.ensure_account_column("bonus_funding_deduction_rate", "REAL NOT NULL DEFAULT 0")?;
+        self.ensure_position_column("take_profit", "REAL")?;
+        self.ensure_position_column("stop_loss", "REAL")?;
         Ok(())
     }
 
@@ -779,7 +781,9 @@ impl PortfolioRepository {
                  realized_pnl = ?18,
                  fee_paid = ?19,
                  funding_paid = ?20,
-                 notes = ?21
+                 take_profit = ?21,
+                 stop_loss = ?22,
+                 notes = ?23
              WHERE id = ?1",
             params![
                 input.id,
@@ -802,6 +806,8 @@ impl PortfolioRepository {
                 input.realized_pnl.unwrap_or(existing.realized_pnl),
                 input.fee_paid.unwrap_or(0.0),
                 input.funding_paid.unwrap_or(0.0),
+                input.take_profit,
+                input.stop_loss,
                 normalize_optional_text(input.notes),
             ],
         )?;
@@ -1076,6 +1082,8 @@ impl PortfolioRepository {
                     realized_pnl: Some(row.data.realized_pnl),
                     fee_paid: Some(row.data.fee_paid),
                     funding_paid: Some(row.data.funding_paid),
+                    take_profit: None,
+                    stop_loss: None,
                     notes: Some("Imported from CSV".into()),
                 },
                 PositionEventKind::Imported,
@@ -2024,8 +2032,8 @@ impl PortfolioRepository {
                 id, account_id, exchange, exchange_symbol, margin_mode, symbol, side, quantity, entry_price, mark_price,
                 margin_used, liquidation_price, maintenance_margin, maintenance_margin_rate,
                 risk_source, leverage, unrealized_pnl, realized_pnl, fee_paid, funding_paid,
-                opened_at, notes
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)",
+                take_profit, stop_loss, opened_at, notes
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24)",
             params![
                 identifier,
                 input.account_id,
@@ -2047,6 +2055,8 @@ impl PortfolioRepository {
                 input.realized_pnl.unwrap_or(0.0),
                 input.fee_paid.unwrap_or(0.0),
                 input.funding_paid.unwrap_or(0.0),
+                input.take_profit,
+                input.stop_loss,
                 opened_at.to_rfc3339(),
                 normalize_optional_text(input.notes),
             ],
@@ -2351,7 +2361,7 @@ impl PortfolioRepository {
                     positions.liquidation_price, positions.maintenance_margin,
                     positions.maintenance_margin_rate, positions.risk_source, positions.leverage,
                     positions.unrealized_pnl, positions.realized_pnl, positions.fee_paid,
-                    positions.funding_paid, positions.opened_at, positions.notes
+                    positions.funding_paid, positions.take_profit, positions.stop_loss, positions.opened_at, positions.notes
              FROM positions
              JOIN accounts ON accounts.id = positions.account_id
              WHERE positions.account_id = ?1
@@ -2369,7 +2379,7 @@ impl PortfolioRepository {
                     positions.liquidation_price, positions.maintenance_margin,
                     positions.maintenance_margin_rate, positions.risk_source, positions.leverage,
                     positions.unrealized_pnl, positions.realized_pnl, positions.fee_paid,
-                    positions.funding_paid, positions.opened_at, positions.notes
+                    positions.funding_paid, positions.take_profit, positions.stop_loss, positions.opened_at, positions.notes
              FROM positions
              JOIN accounts ON accounts.id = positions.account_id
              ORDER BY positions.opened_at DESC",
@@ -2388,7 +2398,7 @@ impl PortfolioRepository {
                         positions.liquidation_price, positions.maintenance_margin,
                         positions.maintenance_margin_rate, positions.risk_source, positions.leverage,
                         positions.unrealized_pnl, positions.realized_pnl, positions.fee_paid,
-                        positions.funding_paid, positions.opened_at, positions.notes
+                        positions.funding_paid, positions.take_profit, positions.stop_loss, positions.opened_at, positions.notes
                  FROM positions
                  JOIN accounts ON accounts.id = positions.account_id
                  WHERE positions.id = ?1
@@ -2867,8 +2877,10 @@ fn read_position_row(row: &Row<'_>) -> Result<PortfolioPosition, rusqlite::Error
         realized_pnl: row.get(18)?,
         fee_paid: row.get(19)?,
         funding_paid: row.get(20)?,
-        opened_at: parse_datetime(row.get::<_, String>(21)?),
-        notes: row.get(22)?,
+        take_profit: row.get(21)?,
+        stop_loss: row.get(22)?,
+        opened_at: parse_datetime(row.get::<_, String>(23)?),
+        notes: row.get(24)?,
     })
 }
 
@@ -3583,6 +3595,8 @@ mod tests {
                 realized_pnl: Some(35.0),
                 fee_paid: Some(4.0),
                 funding_paid: Some(1.2),
+                take_profit: None,
+                stop_loss: None,
                 notes: Some("manual live-parity".into()),
             })
             .expect("manual position should be created");
@@ -3640,6 +3654,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: None,
                 funding_paid: None,
+                take_profit: None,
+                stop_loss: None,
                 notes: None,
             })
             .expect("manual position should derive risk");
@@ -3696,6 +3712,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: None,
                 funding_paid: None,
+                take_profit: None,
+                stop_loss: None,
                 notes: None,
             })
             .expect("first manual position should be created");
@@ -3718,6 +3736,8 @@ mod tests {
             realized_pnl: None,
             fee_paid: None,
             funding_paid: None,
+            take_profit: None,
+            stop_loss: None,
             notes: None,
         })
         .expect("second manual position should be created");
@@ -3836,6 +3856,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: Some(4.0),
                 funding_paid: Some(1.0),
+                take_profit: None,
+                stop_loss: None,
                 notes: Some("manual open".into()),
             })
             .expect("manual position should be added");
@@ -3858,6 +3880,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: Some(5.0),
                 funding_paid: Some(1.5),
+                take_profit: None,
+                stop_loss: None,
                 notes: Some("manual adjust".into()),
             })
             .expect("manual position should update");
@@ -4281,6 +4305,8 @@ mod tests {
             realized_pnl: None,
             fee_paid: Some(2.0),
             funding_paid: Some(0.0),
+            take_profit: None,
+            stop_loss: None,
             notes: None,
         })
         .expect("manual position should be added");
@@ -4303,6 +4329,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: Some(1.0),
                 funding_paid: Some(0.5),
+                take_profit: None,
+                stop_loss: None,
                 notes: Some("csv".into()),
             },
             PositionEventKind::Imported,
@@ -4544,6 +4572,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: Some(2.0),
                 funding_paid: Some(1.0),
+                take_profit: None,
+                stop_loss: None,
                 notes: None,
             })
             .expect("manual position should be created");
@@ -4694,6 +4724,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: Some(2.0),
                 funding_paid: Some(1.0),
+                take_profit: None,
+                stop_loss: None,
                 notes: None,
             })
             .expect("manual position should resolve against cached market");
@@ -4744,6 +4776,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: Some(0.0),
                 funding_paid: Some(0.0),
+                take_profit: None,
+                stop_loss: None,
                 notes: None,
             })
             .expect_err("excess leverage should be rejected");
@@ -4769,6 +4803,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: Some(0.0),
                 funding_paid: Some(0.0),
+                take_profit: None,
+                stop_loss: None,
                 notes: None,
             })
             .expect_err("off-step quantity should be rejected");
@@ -4817,6 +4853,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: Some(1.0),
                 funding_paid: Some(0.5),
+                take_profit: None,
+                stop_loss: None,
                 notes: None,
             })
             .expect("manual position should be created");
@@ -4839,6 +4877,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: Some(1.2),
                 funding_paid: Some(0.5),
+                take_profit: None,
+                stop_loss: None,
                 notes: Some("resized".into()),
             })
             .expect("manual position update should preserve exchange-backed identity");
@@ -4988,6 +5028,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: Some(2.0),
                 funding_paid: Some(1.0),
+                take_profit: None,
+                stop_loss: None,
                 notes: None,
             })
             .expect("manual position should be created");
@@ -5047,6 +5089,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: Some(0.0),
                 funding_paid: Some(0.0),
+                take_profit: None,
+                stop_loss: None,
                 notes: None,
             })
             .expect("manual position should be created");
@@ -5069,6 +5113,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: Some(3.0),
                 funding_paid: Some(2.0),
+                take_profit: None,
+                stop_loss: None,
                 notes: Some("scaled".into()),
             })
             .expect("manual position should update");
@@ -5123,6 +5169,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: Some(2.0),
                 funding_paid: Some(1.0),
+                take_profit: None,
+                stop_loss: None,
                 notes: None,
             })
             .expect("manual position should be created");
@@ -5185,6 +5233,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: Some(0.0),
                 funding_paid: Some(0.0),
+                take_profit: None,
+                stop_loss: None,
                 notes: None,
             })
             .expect("partial position should be created");
@@ -5230,6 +5280,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: Some(0.0),
                 funding_paid: Some(0.0),
+                take_profit: None,
+                stop_loss: None,
                 notes: None,
             })
             .expect("full position should be created");
@@ -5310,6 +5362,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: Some(0.0),
                 funding_paid: Some(0.0),
+                take_profit: None,
+                stop_loss: None,
                 notes: None,
             })
             .expect("first position should be created");
@@ -5331,6 +5385,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: Some(0.0),
                 funding_paid: Some(0.0),
+                take_profit: None,
+                stop_loss: None,
                 notes: None,
             })
             .expect("second position should be created");

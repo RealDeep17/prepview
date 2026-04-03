@@ -98,6 +98,18 @@ export function DetailRail() {
             <span className="detail-value" style={{ color: 'var(--accent)' }}>+{fmtCurrency(positionBonusOffset)}</span>
           </div>
         )}
+        {position.takeProfit != null && (
+          <div className="detail-row">
+            <span className="detail-label">Take Profit</span>
+            <span className="detail-value" style={{ color: 'var(--green)' }}>{fmtCurrency(position.takeProfit)}</span>
+          </div>
+        )}
+        {position.stopLoss != null && (
+          <div className="detail-row">
+            <span className="detail-label">Stop Loss</span>
+            <span className="detail-value" style={{ color: 'var(--red)' }}>{fmtCurrency(position.stopLoss)}</span>
+          </div>
+        )}
         <DetailRow label="Opened" value={fmtTimestamp(position.openedAt)} />
 
         {position.exchange === 'manual' || position.exchange === 'import' ? (
