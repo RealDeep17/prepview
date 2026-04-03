@@ -426,11 +426,9 @@ impl ExchangeConnector for HyperliquidConnector {
 
     async fn fetch_market_quote(&self, exchange_symbol: &str) -> AppResult<MarketQuote> {
         let lookup_symbol = hyperliquid_exchange_symbol(exchange_symbol);
-        let dex = if let Some((dex_name, _)) = lookup_symbol.split_once(':') {
-            Some(dex_name)
-        } else {
-            None
-        };
+        // Hyperliquid's API crashes with HTTP 500 if the provided dex name is uppercase
+        let dex_name = lookup_symbol.split_once(':').map(|(d, _)| d.to_lowercase());
+        let dex = dex_name.as_deref();
         let (payload, predicted_fundings) = tokio::try_join!(
             self.fetch_meta_and_asset_contexts(dex),
             self.fetch_predicted_fundings()

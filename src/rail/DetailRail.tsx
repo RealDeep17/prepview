@@ -1,7 +1,7 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useAppStore, selectedPosition } from '../store/appStore';
 import { fmtCurrency, fmtPnl, fmtPnlClass, fmtPercent, fmtTimestamp, fmtRelativeTime } from '../lib/fmt';
-import { deleteManualPosition, syncLiveAccount, setLanProjection, configureLanProjection } from '../lib/bridge';
+import { deleteManualPosition, syncLiveAccount, setLanProjection, resetDatabase } from '../lib/bridge';
 
 export function DetailRail() {
   const bootstrap = useAppStore((s) => s.bootstrap);
@@ -32,9 +32,19 @@ export function DetailRail() {
   }, [bootstrap.lanStatus.enabled, fetchBootstrap]);
 
   const handleLanExpose = useCallback(async () => {
-    await configureLanProjection(true, true);
+    await setLanProjection(true, true);
     await fetchBootstrap();
   }, [fetchBootstrap]);
+
+  const handleReset = useCallback(async () => {
+    try {
+      await resetDatabase();
+      window.location.reload();
+    } catch (err) {
+      // Surface error visibly in the danger zone itself — handled by caller
+      throw err;
+    }
+  }, []);
 
   // Position detail
   if (position) {
@@ -131,7 +141,7 @@ export function DetailRail() {
           </div>
         )}
 
-        <BottomPanels bootstrap={bootstrap} handleLanToggle={handleLanToggle} handleLanExpose={handleLanExpose} />
+        <BottomPanels bootstrap={bootstrap} handleLanToggle={handleLanToggle} handleLanExpose={handleLanExpose} onReset={handleReset} />
       </>
     );
   }
@@ -148,7 +158,7 @@ export function DetailRail() {
         <DetailRow label="Total Bonus Offset" value={`+${fmtCurrency(bootstrap.performance.totalBonusOffset)}`} />
       )}
 
-      <BottomPanels bootstrap={bootstrap} handleLanToggle={handleLanToggle} handleLanExpose={handleLanExpose} />
+      <BottomPanels bootstrap={bootstrap} handleLanToggle={handleLanToggle} handleLanExpose={handleLanExpose} onReset={handleReset} />
     </>
   );
 }
@@ -165,7 +175,24 @@ function DetailRow({ label, value, suffix }: { label: string; value: string; suf
   );
 }
 
-function BottomPanels({ bootstrap, handleLanToggle, handleLanExpose }: { bootstrap: NonNullable<ReturnType<typeof useAppStore.getState>['bootstrap']>; handleLanToggle: () => void; handleLanExpose: () => void }) {
+function BottomPanels({ bootstrap, handleLanToggle, handleLanExpose, onReset }: { bootstrap: NonNullable<ReturnType<typeof useAppStore.getState>['bootstrap']>; handleLanToggle: () => void; handleLanExpose: () => void; onReset: () => Promise<void> }) {
+  const [resetStep, setResetStep] = useState<'idle' | 'confirm' | 'running' | 'error'>('idle');
+  const [resetError, setResetError] = useState<string | null>(null);
+
+  const handleResetClick = async () => {
+    if (resetStep === 'idle') { setResetStep('confirm'); return; }
+    if (resetStep === 'confirm') {
+      setResetStep('running');
+      try {
+        await onReset();
+        // onReset calls location.reload() — we won't get here unless it fails
+      } catch (err) {
+        setResetError(String(err));
+        setResetStep('error');
+      }
+    }
+  };
+
   // Funding rates — deduplicate by symbol, show latest rate
   const fundingMap = new Map<string, number>();
   for (const entry of bootstrap.recentFundingEntries) {
@@ -232,6 +259,48 @@ function BottomPanels({ bootstrap, handleLanToggle, handleLanExpose }: { bootstr
           <button className="btn btn--ghost btn--small" onClick={handleLanExpose}>
             Expose to LAN
           </button>
+        )}
+      </div>
+
+      {/* Danger zone — inline confirm, no native dialogs */}
+      <div style={{ marginTop: 16, borderTop: '1px solid rgba(224,80,80,0.25)', paddingTop: 10 }}>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.05em', marginBottom: 6 }}>DANGER ZONE</div>
+
+        {resetStep === 'idle' && (
+          <button
+            className="btn btn--danger btn--small"
+            style={{ width: '100%', fontSize: 10 }}
+            onClick={handleResetClick}
+          >
+            Reset Database
+          </button>
+        )}
+
+        {resetStep === 'confirm' && (
+          <div style={{ background: 'rgba(224,80,80,0.12)', border: '1px solid rgba(224,80,80,0.4)', borderRadius: 4, padding: '8px 10px' }}>
+            <div style={{ fontSize: 10, color: '#e05050', marginBottom: 6, lineHeight: 1.4 }}>
+              ⚠ This will delete ALL accounts, positions and history. Cannot be undone.
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button className="btn btn--danger btn--small" style={{ flex: 1, fontSize: 10 }} onClick={handleResetClick}>
+                Confirm Reset
+              </button>
+              <button className="btn btn--ghost btn--small" style={{ fontSize: 10 }} onClick={() => setResetStep('idle')}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {resetStep === 'running' && (
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', padding: '6px 0' }}>Resetting…</div>
+        )}
+
+        {resetStep === 'error' && (
+          <div style={{ fontSize: 10, color: '#e05050', padding: '6px 0' }}>
+            Failed: {resetError}
+            <button className="btn btn--ghost btn--small" style={{ marginLeft: 6, fontSize: 9 }} onClick={() => setResetStep('idle')}>Dismiss</button>
+          </div>
         )}
       </div>
     </>

@@ -1,10 +1,9 @@
-import { useAppStore, scopedPositions } from '../store/appStore';
+import { useAppStore } from '../store/appStore';
 import { fmtCurrency, fmtPnl, fmtPnlClass, fmtPercent, heatClass } from '../lib/fmt';
 
 export function SummaryStrip() {
   const bootstrap = useAppStore((s) => s.bootstrap);
-  const state = useAppStore.getState();
-  const positions = scopedPositions(state);
+
   if (!bootstrap) return null;
 
   const { summary, performance } = bootstrap;

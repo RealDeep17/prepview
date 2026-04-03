@@ -3,7 +3,7 @@ import { useAppStore } from '../store/appStore';
 import { useContextMenu } from '../shell/ContextMenu';
 import { useToast } from '../shell/Toast';
 import { fmtCurrency, fmtPnl, fmtPnlClass, fmtPercent, fmtRelativeTime, exchangeTagClass, syncDotClass } from '../lib/fmt';
-import { deleteAccount, syncLiveAccount, resetDatabase } from '../lib/bridge';
+import { deleteAccount, syncLiveAccount } from '../lib/bridge';
 
 export function AccountsRail() {
   // Reactive selectors — these will re-render on bootstrap changes
@@ -222,21 +222,7 @@ export function AccountsRail() {
         </div>
       )}
 
-      {/* Database Reset */}
-      <div style={{ marginTop: 'auto', padding: '20px 12px', borderTop: '1px solid var(--border)' }}>
-        <button
-          className="btn btn--danger btn--small"
-          style={{ width: '100%' }}
-          onClick={async () => {
-            if (confirm('WARNING: This will delete ALL data. Are you sure? Roska?')) {
-              await resetDatabase();
-              await fetchBootstrap();
-            }
-          }}
-        >
-          Reset Database
-        </button>
-      </div>
+
     </>
   );
 }
