@@ -2,7 +2,7 @@
 
 PrepView is a local-first desktop portfolio app for derivatives traders who want trustworthy review surfaces for live, manual, and imported books without drifting into terminal or execution scope.
 
-![PrepView logo](./prepview.svg)
+![PrepView dashboard](docs/assets/prepview-dashboard.png)
 
 ## What It Does
 
