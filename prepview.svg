@@ -1,18 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <!-- Matching app's --bg-base color exactly for the deepest sleek look -->
+  
   <rect width="1024" height="1024" rx="230" fill="#09090F" />
   
-  <!-- Subtle border ring matching the app's border variables -->
+  
   <rect width="1008" height="1008" x="8" y="8" rx="230" fill="none" stroke="#FFFFFF" stroke-opacity="0.04" stroke-width="4" />
   
-  <!-- Solid Geometric Three-Bar Graph in Monochromatic Brand Violet -->
   
-  <!-- Left Bar: Deepest Violet -->
+  
+  
   <rect x="220" y="580" width="120" height="200" rx="30" fill="#3D1A7A" />
   
-  <!-- Middle Bar: Medium Violet -->
+  
   <rect x="452" y="420" width="120" height="360" rx="30" fill="#622ABE" />
   
-  <!-- Right Bar: Signature Brand Violet (matches --accent exactly) -->
+  
   <rect x="684" y="240" width="120" height="540" rx="30" fill="#863bff" />
 </svg>
