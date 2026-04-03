@@ -112,7 +112,7 @@ fn build_services(app: &tauri::AppHandle) -> AppResult<Arc<AppServices>> {
         lan_manager: Mutex::new(LanProjectionManager::default()),
         auto_sync_status: Mutex::new(AutoSyncStatus::default()),
         http_client: reqwest::Client::builder()
-            .user_agent("prepview/0.1.0")
+            .user_agent(concat!("prepview/", env!("CARGO_PKG_VERSION")))
             .build()?,
         secrets_dir,
         sync_gate: AsyncMutex::new(()),
