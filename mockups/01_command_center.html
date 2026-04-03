@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cassini — Command Center</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg-base:#09090f;--bg-surface:#111118;--bg-raised:#16161f;--bg-hover:#1c1c28;
+    --accent:hsl(252,85%,65%);--accent-dim:hsl(252,60%,45%);--accent-glow:hsla(252,85%,65%,0.15);
+    --green:hsl(152,70%,52%);--green-dim:hsla(152,70%,52%,0.12);
+    --red:hsl(0,72%,58%);--red-dim:hsla(0,72%,58%,0.12);
+    --text-bright:hsl(0,0%,95%);--text-secondary:hsl(0,0%,52%);--text-muted:hsl(0,0%,30%);
+    --border:hsla(0,0%,100%,0.06);--border-accent:hsla(252,85%,65%,0.25);
+    --mono:'JetBrains Mono',monospace;--sans:'Inter',sans-serif;
+    --row-h:40px;
+  }
+  html,body{height:100%;background:var(--bg-base);color:var(--text-bright);font-family:var(--sans);font-size:13px;overflow:hidden}
+
+  /* Shell */
+  .shell{display:grid;grid-template-rows:auto 1fr;grid-template-columns:240px 1fr 300px;height:100vh;gap:0}
+  .topbar{grid-column:1/-1;display:flex;align-items:center;height:48px;padding:0 16px;background:var(--bg-surface);border-bottom:1px solid var(--border);gap:16px}
+  .topbar .logo{font-weight:700;font-size:15px;letter-spacing:-0.02em;background:linear-gradient(135deg,var(--accent),hsl(280,80%,70%));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .topbar .scope{display:flex;gap:4px;margin-left:24px}
+  .topbar .scope button{padding:4px 12px;border-radius:6px;border:none;background:transparent;color:var(--text-secondary);font-family:var(--sans);font-size:12px;font-weight:500;cursor:pointer;transition:all .15s}
+  .topbar .scope button.active{background:var(--accent-glow);color:var(--accent);border:1px solid var(--border-accent)}
+  .topbar .scope button:hover:not(.active){color:var(--text-bright);background:var(--bg-hover)}
+  .topbar .sync-badge{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11px;font-family:var(--mono);color:var(--green)}
+  .topbar .sync-badge .dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .topbar .sync-badge .next{color:var(--text-muted);margin-left:4px}
+  .topbar .actions{display:flex;gap:8px}
+  .topbar .actions button{padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg-raised);color:var(--text-secondary);font-size:11px;font-family:var(--sans);cursor:pointer;transition:all .15s}
+  .topbar .actions button:hover{border-color:var(--border-accent);color:var(--text-bright)}
+  .topbar .actions button.primary{background:var(--accent);color:#fff;border-color:transparent}
+
+  /* Left rail */
+  .left-rail{background:var(--bg-surface);border-right:1px solid var(--border);overflow-y:auto;padding:12px 0}
+  .rail-section{padding:0 12px;margin-bottom:16px}
+  .rail-section .section-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:8px;padding:0 4px}
+  .account-card{padding:10px 12px;border-radius:8px;cursor:pointer;transition:all .15s;border:1px solid transparent;margin-bottom:4px}
+  .account-card:hover{background:var(--bg-hover);border-color:var(--border)}
+  .account-card.selected{background:var(--accent-glow);border-color:var(--border-accent)}
+  .account-card .account-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+  .account-card .account-name{font-weight:600;font-size:13px}
+  .account-card .exchange-tag{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:2px 6px;border-radius:4px;background:var(--bg-raised);color:var(--text-secondary)}
+  .account-card .exchange-tag.blofin{background:hsla(210,80%,55%,0.12);color:hsl(210,80%,65%)}
+  .account-card .exchange-tag.hyperliquid{background:hsla(160,70%,50%,0.12);color:hsl(160,70%,60%)}
+  .account-card .exchange-tag.manual{background:hsla(0,0%,50%,0.1);color:var(--text-secondary)}
+  .account-card .account-metrics{display:flex;gap:12px;font-size:11px}
+  .account-card .account-metrics .metric-label{color:var(--text-muted);font-size:9px;text-transform:uppercase;letter-spacing:.04em}
+  .account-card .account-metrics .metric-value{font-family:var(--mono);font-weight:500;margin-top:1px}
+  .account-card .sync-row{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-muted);margin-top:6px}
+  .account-card .sync-row .sync-dot{width:5px;height:5px;border-radius:50%}
+  .account-card .sync-row .sync-dot.synced{background:var(--green)}
+  .account-card .sync-row .sync-dot.stale{background:hsl(40,80%,55%)}
+  .account-card .sync-row .sync-dot.degraded{background:var(--red)}
+  .account-card .sync-row .sync-dot.local{background:var(--text-muted)}
+
+  /* Summary strip */
+  .summary-strip{display:flex;gap:0;padding:0 20px;border-bottom:1px solid var(--border);height:72px;align-items:center;background:linear-gradient(180deg,hsla(252,40%,15%,0.3) 0%,transparent 100%)}
+  .summary-item{flex:1;display:flex;flex-direction:column;gap:2px;padding:0 16px;border-right:1px solid var(--border)}
+  .summary-item:last-child{border-right:none}
+  .summary-item .summary-label{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted)}
+  .summary-item .summary-value{font-family:var(--mono);font-size:18px;font-weight:600}
+  .summary-item .summary-value.positive{color:var(--green)}
+  .summary-item .summary-value.negative{color:var(--red)}
+  .summary-item .summary-sub{font-size:10px;color:var(--text-secondary);font-family:var(--mono)}
+
+  /* Center pane */
+  .center{display:flex;flex-direction:column;overflow:hidden}
+  .tab-bar{display:flex;gap:0;border-bottom:1px solid var(--border);padding:0 20px;background:var(--bg-surface)}
+  .tab-bar button{padding:10px 16px;border:none;background:none;color:var(--text-secondary);font-size:12px;font-weight:500;font-family:var(--sans);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s}
+  .tab-bar button.active{color:var(--text-bright);border-bottom-color:var(--accent)}
+  .tab-bar button:hover:not(.active){color:var(--text-bright)}
+
+  /* Positions table */
+  .table-wrap{flex:1;overflow:auto;padding:0}
+  table{width:100%;border-collapse:collapse}
+  thead{position:sticky;top:0;z-index:2}
+  thead th{padding:8px 12px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);text-align:left;background:var(--bg-surface);border-bottom:1px solid var(--border);white-space:nowrap}
+  thead th.num{text-align:right}
+  tbody tr{height:var(--row-h);border-bottom:1px solid var(--border);transition:background .15s}
+  tbody tr:hover{background:var(--bg-hover)}
+  tbody tr.selected{background:var(--accent-glow)}
+  tbody td{padding:6px 12px;white-space:nowrap;font-size:12px}
+  tbody td.num{text-align:right;font-family:var(--mono);font-weight:500}
+  tbody td.symbol{font-family:var(--mono);font-weight:600;font-size:12px}
+  .side-tag{display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+  .side-tag.long{background:var(--green-dim);color:var(--green)}
+  .side-tag.short{background:var(--red-dim);color:var(--red)}
+  .pnl-positive{color:var(--green)}
+  .pnl-negative{color:var(--red)}
+  .risk-chip{font-size:9px;color:var(--text-muted);background:var(--bg-raised);padding:1px 5px;border-radius:3px;margin-left:4px}
+  .margin-tag{font-size:9px;padding:1px 4px;border-radius:3px;background:hsla(0,0%,100%,0.04);color:var(--text-muted);text-transform:uppercase}
+
+  /* Right rail */
+  .right-rail{background:var(--bg-surface);border-left:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column}
+  .right-rail .rail-header{padding:14px 16px;font-weight:600;font-size:13px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+  .right-rail .rail-header .badge{font-size:10px;padding:2px 6px;border-radius:4px;font-weight:600}
+  .rail-panel{padding:16px;border-bottom:1px solid var(--border)}
+  .rail-panel .panel-title{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:10px}
+  .detail-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px}
+  .detail-row .label{color:var(--text-secondary)}
+  .detail-row .value{font-family:var(--mono);font-weight:500}
+  .heat-bar{height:6px;border-radius:3px;background:var(--bg-raised);overflow:hidden;margin-top:4px}
+  .heat-bar .fill{height:100%;border-radius:3px;transition:width .3s}
+  .sync-log-item{padding:8px 0;border-bottom:1px solid var(--border);font-size:11px}
+  .sync-log-item:last-child{border:none}
+  .sync-log-item .sync-time{font-family:var(--mono);color:var(--text-muted);font-size:10px}
+  .sync-log-item .sync-detail{color:var(--text-secondary);margin-top:2px}
+  .funding-row{display:flex;justify-content:space-between;padding:4px 0;font-size:11px;font-family:var(--mono)}
+  .funding-row .symbol{color:var(--text-secondary)}
+
+  /* Heat gradient */
+  .heat-low{background:linear-gradient(90deg,var(--green),hsl(120,60%,45%))}
+  .heat-mid{background:linear-gradient(90deg,hsl(45,80%,55%),hsl(30,80%,50%))}
+  .heat-high{background:linear-gradient(90deg,hsl(15,80%,50%),var(--red))}
+</style>
+</head>
+<body>
+<div class="shell">
+  <!-- Top Bar -->
+  <div class="topbar">
+    <div class="logo">CASSINI</div>
+    <div class="scope">
+      <button class="active">All Accounts</button>
+      <button>BloFin</button>
+      <button>Hyperliquid</button>
+    </div>
+    <div class="sync-badge">
+      <span class="dot"></span>
+      Synced
+      <span class="next">· next in 72s</span>
+    </div>
+    <div class="actions">
+      <button>⌘K</button>
+      <button>+ Position</button>
+      <button class="primary">+ Account</button>
+    </div>
+  </div>
+
+  <!-- Left Rail / Accounts -->
+  <div class="left-rail">
+    <div class="rail-section">
+      <div class="section-label">Accounts · 4</div>
+      <div class="account-card selected">
+        <div class="account-header">
+          <span class="account-name">Main Trading</span>
+          <span class="exchange-tag blofin">BloFin</span>
+        </div>
+        <div class="account-metrics">
+          <div><div class="metric-label">Equity</div><div class="metric-value">$48,291.03</div></div>
+          <div><div class="metric-label">PnL</div><div class="metric-value pnl-positive">+$1,847.22</div></div>
+        </div>
+        <div class="sync-row"><span class="sync-dot synced"></span> synced · 3m ago</div>
+      </div>
+
+      <div class="account-card">
+        <div class="account-header">
+          <span class="account-name">Hedge Book</span>
+          <span class="exchange-tag blofin">BloFin</span>
+        </div>
+        <div class="account-metrics">
+          <div><div class="metric-label">Equity</div><div class="metric-value">$12,510.88</div></div>
+          <div><div class="metric-label">PnL</div><div class="metric-value pnl-negative">−$342.17</div></div>
+        </div>
+        <div class="sync-row"><span class="sync-dot synced"></span> synced · 3m ago</div>
+      </div>
+
+      <div class="account-card">
+        <div class="account-header">
+          <span class="account-name">HL Perps</span>
+          <span class="exchange-tag hyperliquid">Hyperliquid</span>
+        </div>
+        <div class="account-metrics">
+          <div><div class="metric-label">Equity</div><div class="metric-value">$31,007.64</div></div>
+          <div><div class="metric-label">PnL</div><div class="metric-value pnl-positive">+$2,219.40</div></div>
+        </div>
+        <div class="sync-row"><span class="sync-dot stale"></span> stale · 18m ago</div>
+      </div>
+
+      <div class="account-card">
+        <div class="account-header">
+          <span class="account-name">Paper Book</span>
+          <span class="exchange-tag manual">Manual</span>
+        </div>
+        <div class="account-metrics">
+          <div><div class="metric-label">Balance</div><div class="metric-value">$5,000.00</div></div>
+          <div><div class="metric-label">PnL</div><div class="metric-value" style="color:var(--text-secondary)">$0.00</div></div>
+        </div>
+        <div class="sync-row"><span class="sync-dot local"></span> local</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Center Pane -->
+  <div class="center">
+    <!-- Summary Strip -->
+    <div class="summary-strip">
+      <div class="summary-item">
+        <span class="summary-label">Total Equity</span>
+        <span class="summary-value">$96,809.55</span>
+        <span class="summary-sub">4 accounts</span>
+      </div>
+      <div class="summary-item">
+        <span class="summary-label">Unrealized P&L</span>
+        <span class="summary-value positive">+$3,724.45</span>
+        <span class="summary-sub">+4.01%</span>
+      </div>
+      <div class="summary-item">
+        <span class="summary-label">Gross Notional</span>
+        <span class="summary-value">$287,430.12</span>
+        <span class="summary-sub">8 open positions</span>
+      </div>
+      <div class="summary-item">
+        <span class="summary-label">Portfolio Heat</span>
+        <span class="summary-value" style="font-size:16px">34.2%</span>
+        <div class="heat-bar"><div class="fill heat-mid" style="width:34.2%"></div></div>
+      </div>
+      <div class="summary-item">
+        <span class="summary-label">Win Rate</span>
+        <span class="summary-value">67.4%</span>
+        <span class="summary-sub">29/43 closed</span>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tab-bar">
+      <button class="active">Positions</button>
+      <button>Exposure</button>
+      <button>Equity History</button>
+      <button>Trade Journal</button>
+      <button>Closed Trades</button>
+    </div>
+
+    <!-- Positions Table -->
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Symbol</th>
+            <th>Account</th>
+            <th>Side</th>
+            <th>Margin</th>
+            <th class="num">Size</th>
+            <th class="num">Entry</th>
+            <th class="num">Mark</th>
+            <th class="num">Liq. Price</th>
+            <th class="num">Leverage</th>
+            <th class="num">Margin Used</th>
+            <th class="num">Unrealized P&L</th>
+            <th class="num">Notional</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="selected">
+            <td class="symbol">BTC-PERP</td>
+            <td>Main Trading</td>
+            <td><span class="side-tag long">Long</span></td>
+            <td><span class="margin-tag">cross</span></td>
+            <td class="num">0.850</td>
+            <td class="num">83,241.50</td>
+            <td class="num">84,912.30</td>
+            <td class="num">71,208.44<span class="risk-chip">est.</span></td>
+            <td class="num">10×</td>
+            <td class="num">7,075.25</td>
+            <td class="num pnl-positive">+$1,420.18</td>
+            <td class="num">72,175.46</td>
+          </tr>
+          <tr>
+            <td class="symbol">ETH-PERP</td>
+            <td>Main Trading</td>
+            <td><span class="side-tag long">Long</span></td>
+            <td><span class="margin-tag">cross</span></td>
+            <td class="num">12.40</td>
+            <td class="num">2,148.90</td>
+            <td class="num">2,183.45</td>
+            <td class="num">1,814.22<span class="risk-chip">est.</span></td>
+            <td class="num">5×</td>
+            <td class="num">5,329.30</td>
+            <td class="num pnl-positive">+$428.42</td>
+            <td class="num">27,074.78</td>
+          </tr>
+          <tr>
+            <td class="symbol">SOL-PERP</td>
+            <td>Main Trading</td>
+            <td><span class="side-tag short">Short</span></td>
+            <td><span class="margin-tag">isolated</span></td>
+            <td class="num">85.0</td>
+            <td class="num">142.80</td>
+            <td class="num">139.22</td>
+            <td class="num">158.40</td>
+            <td class="num">8×</td>
+            <td class="num">1,517.25</td>
+            <td class="num pnl-positive">+$304.30</td>
+            <td class="num">11,833.70</td>
+          </tr>
+          <tr>
+            <td class="symbol">ETH-PERP</td>
+            <td>Hedge Book</td>
+            <td><span class="side-tag short">Short</span></td>
+            <td><span class="margin-tag">cross</span></td>
+            <td class="num">8.20</td>
+            <td class="num">2,110.50</td>
+            <td class="num">2,183.45</td>
+            <td class="num">2,440.18<span class="risk-chip">est.</span></td>
+            <td class="num">3×</td>
+            <td class="num">5,762.10</td>
+            <td class="num pnl-negative">−$598.19</td>
+            <td class="num">17,904.29</td>
+          </tr>
+          <tr>
+            <td class="symbol">BTC-PERP</td>
+            <td>HL Perps</td>
+            <td><span class="side-tag long">Long</span></td>
+            <td><span class="margin-tag">cross</span></td>
+            <td class="num">1.200</td>
+            <td class="num">82,440.00</td>
+            <td class="num">84,912.30</td>
+            <td class="num">69,512.80</td>
+            <td class="num">20×</td>
+            <td class="num">4,946.40</td>
+            <td class="num pnl-positive">+$2,966.76</td>
+            <td class="num">101,894.76</td>
+          </tr>
+          <tr>
+            <td class="symbol">DOGE-PERP</td>
+            <td>HL Perps</td>
+            <td><span class="side-tag long">Long</span></td>
+            <td><span class="margin-tag">cross</span></td>
+            <td class="num">42,000</td>
+            <td class="num">0.1648</td>
+            <td class="num">0.1621</td>
+            <td class="num">0.1310</td>
+            <td class="num">5×</td>
+            <td class="num">1,384.32</td>
+            <td class="num pnl-negative">−$113.40</td>
+            <td class="num">6,808.20</td>
+          </tr>
+          <tr>
+            <td class="symbol">ARB-PERP</td>
+            <td>HL Perps</td>
+            <td><span class="side-tag short">Short</span></td>
+            <td><span class="margin-tag">cross</span></td>
+            <td class="num">5,200</td>
+            <td class="num">0.8820</td>
+            <td class="num">0.8745</td>
+            <td class="num">1.1040</td>
+            <td class="num">3×</td>
+            <td class="num">1,514.80</td>
+            <td class="num pnl-positive">+$39.00</td>
+            <td class="num">4,547.40</td>
+          </tr>
+          <tr>
+            <td class="symbol">WIF-PERP</td>
+            <td>Hedge Book</td>
+            <td><span class="side-tag short">Short</span></td>
+            <td><span class="margin-tag">isolated</span></td>
+            <td class="num">3,800</td>
+            <td class="num">1.2440</td>
+            <td class="num">1.1810</td>
+            <td class="num">1.6200<span class="risk-chip">manual</span></td>
+            <td class="num">4×</td>
+            <td class="num">1,181.80</td>
+            <td class="num pnl-positive">+$239.40</td>
+            <td class="num">4,487.80</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Right Rail -->
+  <div class="right-rail">
+    <div class="rail-header">
+      BTC-PERP
+      <span class="badge" style="background:var(--green-dim);color:var(--green)">Long</span>
+      <span style="margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--text-secondary)">Main Trading</span>
+    </div>
+
+    <div class="rail-panel">
+      <div class="panel-title">Position Detail</div>
+      <div class="detail-row"><span class="label">Entry Price</span><span class="value">$83,241.50</span></div>
+      <div class="detail-row"><span class="label">Mark Price</span><span class="value">$84,912.30</span></div>
+      <div class="detail-row"><span class="label">Liquidation</span><span class="value">$71,208.44 <span class="risk-chip">est.</span></span></div>
+      <div class="detail-row"><span class="label">Size</span><span class="value">0.850 BTC</span></div>
+      <div class="detail-row"><span class="label">Notional</span><span class="value">$72,175.46</span></div>
+      <div class="detail-row"><span class="label">Leverage</span><span class="value">10×</span></div>
+      <div class="detail-row"><span class="label">Margin Mode</span><span class="value">Cross</span></div>
+      <div class="detail-row"><span class="label">Margin Used</span><span class="value">$7,075.25</span></div>
+      <div class="detail-row"><span class="label">Maint. Margin</span><span class="value">$577.40</span></div>
+      <div class="detail-row"><span class="label">MMR</span><span class="value">0.80%</span></div>
+    </div>
+
+    <div class="rail-panel">
+      <div class="panel-title">P&L Breakdown</div>
+      <div class="detail-row"><span class="label">Unrealized</span><span class="value pnl-positive">+$1,420.18</span></div>
+      <div class="detail-row"><span class="label">Realized</span><span class="value">$0.00</span></div>
+      <div class="detail-row"><span class="label">Fees Paid</span><span class="value" style="color:var(--red)">−$14.82</span></div>
+      <div class="detail-row"><span class="label">Funding Paid</span><span class="value" style="color:var(--red)">−$6.44</span></div>
+      <div class="detail-row"><span class="label">Opened</span><span class="value" style="font-size:11px;color:var(--text-secondary)">02 Apr 22:14</span></div>
+    </div>
+
+    <div class="rail-panel">
+      <div class="panel-title">Funding Rates</div>
+      <div class="funding-row"><span class="symbol">BTC-PERP</span><span class="pnl-positive">+0.0042%</span></div>
+      <div class="funding-row"><span class="symbol">ETH-PERP</span><span class="pnl-positive">+0.0018%</span></div>
+      <div class="funding-row"><span class="symbol">SOL-PERP</span><span class="pnl-negative">−0.0091%</span></div>
+      <div class="funding-row"><span class="symbol">DOGE-PERP</span><span class="pnl-positive">+0.0103%</span></div>
+      <div style="font-size:10px;color:var(--text-muted);margin-top:6px;font-family:var(--mono)">Next funding in 4h 12m</div>
+    </div>
+
+    <div class="rail-panel">
+      <div class="panel-title">Recent Sync Jobs</div>
+      <div class="sync-log-item">
+        <div style="display:flex;justify-content:space-between">
+          <span style="color:var(--green)">● Main Trading</span>
+          <span class="sync-time">3m ago</span>
+        </div>
+        <div class="sync-detail">2 positions · 3 funding · 1 attempt</div>
+      </div>
+      <div class="sync-log-item">
+        <div style="display:flex;justify-content:space-between">
+          <span style="color:var(--green)">● Hedge Book</span>
+          <span class="sync-time">3m ago</span>
+        </div>
+        <div class="sync-detail">2 positions · 1 funding · 1 attempt</div>
+      </div>
+      <div class="sync-log-item">
+        <div style="display:flex;justify-content:space-between">
+          <span style="color:hsl(40,80%,55%)">● HL Perps</span>
+          <span class="sync-time">18m ago</span>
+        </div>
+        <div class="sync-detail">3 positions · 0 funding · 2 attempts</div>
+      </div>
+    </div>
+
+    <div class="rail-panel">
+      <div class="panel-title">LAN Projection</div>
+      <div class="detail-row"><span class="label">Status</span><span class="value" style="color:var(--green)">Active</span></div>
+      <div class="detail-row"><span class="label">Bind</span><span class="value" style="font-size:11px">127.0.0.1:46666</span></div>
+      <div style="margin-top:8px;padding:6px 8px;background:var(--bg-raised);border-radius:6px;font-family:var(--mono);font-size:10px;color:var(--text-secondary);word-break:break-all;cursor:pointer">
+        http://127.0.0.1:46666/api/portfolio/summary?token=a3f8…
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
