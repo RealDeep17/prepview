@@ -207,7 +207,7 @@ impl HyperliquidConnector {
     }
 
     async fn fetch_perp_dexs(&self) -> AppResult<Vec<HyperliquidPerpDex>> {
-        self.client
+        let raw = self.client
             .post(HYPERLIQUID_INFO_URL)
             .json(&serde_json::json!({
                 "type": "perpDexs",
@@ -215,9 +215,9 @@ impl HyperliquidConnector {
             .send()
             .await?
             .error_for_status()?
-            .json::<Vec<HyperliquidPerpDex>>()
-            .await
-            .map_err(Into::into)
+            .json::<Vec<Option<HyperliquidPerpDex>>>()
+            .await?;
+        Ok(raw.into_iter().flatten().collect())
     }
 
     async fn fetch_meta_and_asset_contexts(&self, dex: Option<&str>) -> AppResult<HyperliquidMetaAndAssetCtxs> {
@@ -411,9 +411,15 @@ impl ExchangeConnector for HyperliquidConnector {
                 markets.extend(parse_hyperliquid_markets(&payload, self));
             }
         } else {
-            let futures = dexs.iter().map(|dex| {
-                let dex_name = if dex.name == "HL" { None } else { Some(dex.name.as_str()) };
-                self.fetch_meta_and_asset_contexts(dex_name)
+            const ALLOWED_HIP3: [&str; 1] = ["xyz"];
+            let futures = dexs.iter().filter_map(|dex| {
+                if dex.name == "HL" {
+                    Some(self.fetch_meta_and_asset_contexts(None))
+                } else if ALLOWED_HIP3.contains(&dex.name.to_lowercase().as_str()) {
+                    Some(self.fetch_meta_and_asset_contexts(Some(dex.name.as_str())))
+                } else {
+                    None
+                }
             });
             let results = futures_util::future::join_all(futures).await;
             for payload in results.into_iter().flatten() {
