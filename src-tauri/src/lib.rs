@@ -29,7 +29,7 @@ use commands::{
 use domain::{AutoSyncStatus, BootstrapState};
 use error::{AppError, AppResult};
 use lan::LanProjectionManager;
-use secret_store::database_key;
+use secret_store::{database_key, has_lan_passphrase};
 use store::PortfolioRepository;
 use tauri::Manager;
 use tokio::{
@@ -51,11 +51,12 @@ pub(crate) struct AppServices {
 
 impl AppServices {
     fn snapshot(&self) -> AppResult<BootstrapState> {
-        let lan_status = self
+        let mut lan_status = self
             .lan_manager
             .lock()
             .map_err(|_| AppError::StatePoisoned("lan manager"))?
             .status();
+        lan_status.passphrase_configured = has_lan_passphrase(&self.secrets_dir).unwrap_or(false);
         let auto_sync_status = self
             .auto_sync_status
             .lock()

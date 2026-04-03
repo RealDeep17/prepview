@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { useAppStore } from '../store/appStore';
 import { getPositionEvents, getClosedTrades } from '../lib/bridge';
 import { fmtCurrency, fmtPnl, fmtPnlClass, fmtTimestamp, fmtNumber } from '../lib/fmt';
@@ -13,29 +13,37 @@ export function JournalPane({ showClosed }: Props) {
   const [extraEvents, setExtraEvents] = useState<PositionEventRecord[]>([]);
   const [extraClosed, setExtraClosed] = useState<ClosedTradeRecord[]>([]);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMoreEvents, setHasMoreEvents] = useState(true);
+  const [hasMoreClosed, setHasMoreClosed] = useState(true);
 
   if (!bootstrap) return null;
 
-  const events = [...(bootstrap.recentPositionEvents ?? []), ...extraEvents];
-  const closed = [...(bootstrap.recentClosedTrades ?? []), ...extraClosed];
+  const baseEvents = bootstrap.recentPositionEvents ?? [];
+  const baseClosed = bootstrap.recentClosedTrades ?? [];
+  const events = [...baseEvents, ...extraEvents];
+  const closed = [...baseClosed, ...extraClosed];
 
-  const loadMoreEvents = useCallback(async () => {
+  const loadMoreEvents = async () => {
     setLoadingMore(true);
     try {
-      const more = await getPositionEvents({ limit: 50 });
-      setExtraEvents(more);
+      const requestedLimit = Math.min(events.length + 50, 512);
+      const more = await getPositionEvents({ limit: requestedLimit });
+      setExtraEvents(more.slice(baseEvents.length));
+      setHasMoreEvents(more.length === requestedLimit);
     } catch { /* ignore */ }
     setLoadingMore(false);
-  }, []);
+  };
 
-  const loadMoreClosed = useCallback(async () => {
+  const loadMoreClosed = async () => {
     setLoadingMore(true);
     try {
-      const more = await getClosedTrades({ limit: 50 });
-      setExtraClosed(more);
+      const requestedLimit = Math.min(closed.length + 50, 512);
+      const more = await getClosedTrades({ limit: requestedLimit });
+      setExtraClosed(more.slice(baseClosed.length));
+      setHasMoreClosed(more.length === requestedLimit);
     } catch { /* ignore */ }
     setLoadingMore(false);
-  }, []);
+  };
 
   if (showClosed) {
     if (closed.length === 0) {
@@ -91,11 +99,13 @@ export function JournalPane({ showClosed }: Props) {
             ))}
           </tbody>
         </table>
-        <div style={{ padding: 12, textAlign: 'center' }}>
-          <button className="btn btn--ghost btn--small" onClick={loadMoreClosed} disabled={loadingMore}>
-            {loadingMore ? 'Loading…' : 'Load More'}
-          </button>
-        </div>
+        {hasMoreClosed && (
+          <div style={{ padding: 12, textAlign: 'center' }}>
+            <button className="btn btn--ghost btn--small" onClick={loadMoreClosed} disabled={loadingMore}>
+              {loadingMore ? 'Loading…' : 'Load More'}
+            </button>
+          </div>
+        )}
       </>
     );
   }
@@ -156,11 +166,13 @@ export function JournalPane({ showClosed }: Props) {
           ))}
         </tbody>
       </table>
-      <div style={{ padding: 12, textAlign: 'center' }}>
-        <button className="btn btn--ghost btn--small" onClick={loadMoreEvents} disabled={loadingMore}>
-          {loadingMore ? 'Loading…' : 'Load More'}
-        </button>
-      </div>
+      {hasMoreEvents && (
+        <div style={{ padding: 12, textAlign: 'center' }}>
+          <button className="btn btn--ghost btn--small" onClick={loadMoreEvents} disabled={loadingMore}>
+            {loadingMore ? 'Loading…' : 'Load More'}
+          </button>
+        </div>
+      )}
     </>
   );
 }

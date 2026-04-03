@@ -187,7 +187,7 @@ pub struct LanStatus {
     pub expose_to_lan: bool,
     pub bind_address: Option<String>,
     pub public_url: Option<String>,
-    pub token: Option<String>,
+    pub passphrase_configured: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

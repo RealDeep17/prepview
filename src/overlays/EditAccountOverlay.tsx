@@ -1,7 +1,7 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState } from 'react';
 import { useAppStore } from '../store/appStore';
 import { updateAccount, deleteAccount } from '../lib/bridge';
-import { useToast } from '../shell/Toast';
+import { useToast } from '../shell/toastContext';
 
 export function EditAccountOverlay() {
   const closeOverlay = useAppStore((s) => s.closeOverlay);
@@ -13,29 +13,18 @@ export function EditAccountOverlay() {
 
   const account = bootstrap?.accounts.find((a) => a.id === selectedAccountId) ?? null;
 
-  const [name, setName] = useState('');
-  const [walletBalance, setWalletBalance] = useState('');
-  const [notes, setNotes] = useState('');
-  const [bonusBalance, setBonusBalance] = useState('');
-  const [bonusFeeRate, setBonusFeeRate] = useState('');
-  const [bonusLossRate, setBonusLossRate] = useState('');
-  const [bonusFundingRate, setBonusFundingRate] = useState('');
+  const [name, setName] = useState(() => account?.name ?? '');
+  const [walletBalance, setWalletBalance] = useState(() => account ? String(account.walletBalance) : '');
+  const [notes, setNotes] = useState(() => account?.notes ?? '');
+  const [bonusBalance, setBonusBalance] = useState(() => account ? String(account.bonusBalance) : '');
+  const [bonusFeeRate, setBonusFeeRate] = useState(() => account ? String(account.bonusFeeDeductionRate * 100) : '');
+  const [bonusLossRate, setBonusLossRate] = useState(() => account ? String(account.bonusLossDeductionRate * 100) : '');
+  const [bonusFundingRate, setBonusFundingRate] = useState(() => account ? String(account.bonusFundingDeductionRate * 100) : '');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  useEffect(() => {
-    if (!account) return;
-    setName(account.name);
-    setWalletBalance(String(account.walletBalance));
-    setNotes(account.notes ?? '');
-    setBonusBalance(String(account.bonusBalance));
-    setBonusFeeRate(String(account.bonusFeeDeductionRate * 100));
-    setBonusLossRate(String(account.bonusLossDeductionRate * 100));
-    setBonusFundingRate(String(account.bonusFundingDeductionRate * 100));
-  }, [account]);
-
-  const handleSave = useCallback(async () => {
+  const handleSave = async () => {
     if (!account) return;
     if (!name.trim()) { setError('Name is required'); return; }
     setSubmitting(true);
@@ -56,11 +45,12 @@ export function EditAccountOverlay() {
       closeOverlay();
     } catch (e) {
       setError(String(e));
+    } finally {
+      setSubmitting(false);
     }
-    setSubmitting(false);
-  }, [account, name, walletBalance, notes, bonusBalance, bonusFeeRate, bonusLossRate, bonusFundingRate, fetchBootstrap, closeOverlay]);
+  };
 
-  const handleDelete = useCallback(async () => {
+  const handleDelete = async () => {
     if (!account) return;
     setSubmitting(true);
     setError('');
@@ -72,9 +62,10 @@ export function EditAccountOverlay() {
       closeOverlay();
     } catch (e) {
       setError(String(e));
+    } finally {
+      setSubmitting(false);
     }
-    setSubmitting(false);
-  }, [account, fetchBootstrap, closeOverlay, setSelectedAccountId]);
+  };
 
   if (!account) {
     return (

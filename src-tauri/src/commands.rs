@@ -20,7 +20,10 @@ use crate::{
         UpdateManualPositionInput,
     },
     error::{command_result, AppError},
-    secret_store::{delete_live_credentials, load_live_credentials, store_live_credentials},
+    secret_store::{
+        delete_live_credentials, load_lan_passphrase, load_live_credentials,
+        store_lan_passphrase, store_live_credentials,
+    },
     store::MarketQuoteRefreshTarget,
     AppServices,
 };
@@ -352,8 +355,19 @@ pub async fn set_lan_projection(
     state: State<'_, Arc<AppServices>>,
     enabled: bool,
     expose_to_lan: Option<bool>,
+    viewer_passphrase: Option<String>,
 ) -> Result<LanStatus, String> {
     let expose_to_lan = expose_to_lan.unwrap_or(false);
+    let passphrase_updated = if let Some(passphrase) = viewer_passphrase {
+        let trimmed = passphrase.trim().to_string();
+        if trimmed.len() < 12 {
+            return Err("LAN passphrase must be at least 12 characters".into());
+        }
+        command_result(store_lan_passphrase(&state.secrets_dir, &trimmed))?;
+        true
+    } else {
+        false
+    };
     let current_status = {
         let manager = state
             .lan_manager
@@ -361,9 +375,17 @@ pub async fn set_lan_projection(
             .map_err(|_| AppError::StatePoisoned("lan manager").to_string())?;
         manager.status()
     };
+    let saved_passphrase = if enabled || passphrase_updated {
+        Some(command_result(load_lan_passphrase(&state.secrets_dir))?)
+    } else {
+        None
+    };
 
     let status = if enabled {
-        if current_status.enabled && current_status.expose_to_lan == expose_to_lan {
+        if current_status.enabled
+            && current_status.expose_to_lan == expose_to_lan
+            && !passphrase_updated
+        {
             current_status
         } else {
             if current_status.enabled {
@@ -377,6 +399,7 @@ pub async fn set_lan_projection(
                 crate::lan::LanProjectionManager::start_server(
                     state.inner().clone(),
                     expose_to_lan,
+                    saved_passphrase.unwrap_or_default(),
                 )
                 .await,
             )?;

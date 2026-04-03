@@ -2,9 +2,8 @@
 name = "prepview"
 version = "0.1.0"
 description = "Local-first derivatives portfolio desktop app"
-authors = ["Codex"]
-license = "UNLICENSED"
-repository = ""
+authors = ["RealDeep17"]
+license = "MIT"
 edition = "2021"
 rust-version = "1.77.2"
 

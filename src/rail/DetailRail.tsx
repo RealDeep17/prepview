@@ -1,7 +1,8 @@
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { useAppStore, selectedPosition } from '../store/appStore';
 import { fmtCurrency, fmtPnl, fmtPnlClass, fmtPercent, fmtTimestamp, fmtRelativeTime } from '../lib/fmt';
 import { deleteManualPosition, syncLiveAccount, setLanProjection, resetDatabase } from '../lib/bridge';
+import { useToast } from '../shell/toastContext';
 
 export function DetailRail() {
   const bootstrap = useAppStore((s) => s.bootstrap);
@@ -11,40 +12,24 @@ export function DetailRail() {
 
   if (!bootstrap) return null;
 
-  const handleDelete = useCallback(async () => {
+  const handleDelete = async () => {
     if (!position) return;
     if (!confirm(`Delete position ${position.symbol}?`)) return;
     await deleteManualPosition(position.id);
     useAppStore.getState().setSelectedPositionId(null);
     await fetchBootstrap();
-  }, [position, fetchBootstrap]);
+  };
 
-  const handleSync = useCallback(async () => {
+  const handleSync = async () => {
     if (!position) return;
     await syncLiveAccount(position.accountId);
     await fetchBootstrap();
-  }, [position, fetchBootstrap]);
+  };
 
-  const handleLanToggle = useCallback(async () => {
-    const current = bootstrap.lanStatus.enabled;
-    await setLanProjection(!current);
-    await fetchBootstrap();
-  }, [bootstrap.lanStatus.enabled, fetchBootstrap]);
-
-  const handleLanExpose = useCallback(async () => {
-    await setLanProjection(true, true);
-    await fetchBootstrap();
-  }, [fetchBootstrap]);
-
-  const handleReset = useCallback(async () => {
-    try {
-      await resetDatabase();
-      window.location.reload();
-    } catch (err) {
-      // Surface error visibly in the danger zone itself — handled by caller
-      throw err;
-    }
-  }, []);
+  const handleReset = async () => {
+    await resetDatabase();
+    window.location.reload();
+  };
 
   // Position detail
   if (position) {
@@ -141,7 +126,7 @@ export function DetailRail() {
           </div>
         )}
 
-        <BottomPanels bootstrap={bootstrap} handleLanToggle={handleLanToggle} handleLanExpose={handleLanExpose} onReset={handleReset} />
+        <BottomPanels bootstrap={bootstrap} onReset={handleReset} />
       </>
     );
   }
@@ -158,7 +143,7 @@ export function DetailRail() {
         <DetailRow label="Total Bonus Offset" value={`+${fmtCurrency(bootstrap.performance.totalBonusOffset)}`} />
       )}
 
-      <BottomPanels bootstrap={bootstrap} handleLanToggle={handleLanToggle} handleLanExpose={handleLanExpose} onReset={handleReset} />
+      <BottomPanels bootstrap={bootstrap} onReset={handleReset} />
     </>
   );
 }
@@ -175,9 +160,46 @@ function DetailRow({ label, value, suffix }: { label: string; value: string; suf
   );
 }
 
-function BottomPanels({ bootstrap, handleLanToggle, handleLanExpose, onReset }: { bootstrap: NonNullable<ReturnType<typeof useAppStore.getState>['bootstrap']>; handleLanToggle: () => void; handleLanExpose: () => void; onReset: () => Promise<void> }) {
+function BottomPanels({ bootstrap, onReset }: { bootstrap: NonNullable<ReturnType<typeof useAppStore.getState>['bootstrap']>; onReset: () => Promise<void> }) {
+  const fetchBootstrap = useAppStore((s) => s.fetchBootstrap);
+  const { toast } = useToast();
+  const [lanPassphrase, setLanPassphrase] = useState('');
+  const [lanSaving, setLanSaving] = useState(false);
+  const [lanError, setLanError] = useState<string | null>(null);
   const [resetStep, setResetStep] = useState<'idle' | 'confirm' | 'running' | 'error'>('idle');
   const [resetError, setResetError] = useState<string | null>(null);
+
+  const applyLanState = async (enabled: boolean, exposeToLan: boolean) => {
+    setLanSaving(true);
+    setLanError(null);
+    try {
+      await setLanProjection(enabled, exposeToLan, lanPassphrase.trim() || undefined);
+      await fetchBootstrap();
+      if (lanPassphrase.trim()) {
+        setLanPassphrase('');
+      }
+      toast(
+        enabled
+          ? exposeToLan
+            ? 'LAN projection is live on your local network'
+            : 'LAN projection is live on this machine only'
+          : 'LAN projection disabled',
+        enabled ? 'success' : 'info',
+      );
+    } catch (error) {
+      setLanError(String(error));
+    } finally {
+      setLanSaving(false);
+    }
+  };
+
+  const saveLanPassphrase = async () => {
+    if (!lanPassphrase.trim()) {
+      setLanError('Enter a LAN passphrase before saving.');
+      return;
+    }
+    await applyLanState(bootstrap.lanStatus.enabled, bootstrap.lanStatus.exposeToLan);
+  };
 
   const handleResetClick = async () => {
     if (resetStep === 'idle') { setResetStep('confirm'); return; }
@@ -246,21 +268,57 @@ function BottomPanels({ bootstrap, handleLanToggle, handleLanExpose, onReset }: 
         <span className="detail-label">Bind</span>
         <span className="detail-value">{bootstrap.lanStatus.bindAddress ?? '—'}</span>
       </div>
+      <div className="detail-row">
+        <span className="detail-label">Scope</span>
+        <span className="detail-value">{bootstrap.lanStatus.exposeToLan ? 'Local network' : 'This machine only'}</span>
+      </div>
+      <div className="detail-row">
+        <span className="detail-label">Auth</span>
+        <span className="detail-value">{bootstrap.lanStatus.passphraseConfigured ? 'Bearer passphrase set' : 'Passphrase required'}</span>
+      </div>
       {bootstrap.lanStatus.publicUrl && (
         <div className="lan-url" onClick={() => navigator.clipboard.writeText(bootstrap.lanStatus.publicUrl!)} title="Click to copy">
           {bootstrap.lanStatus.publicUrl}
         </div>
       )}
-      <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
-        <button className="btn btn--ghost btn--small" onClick={handleLanToggle}>
-          {bootstrap.lanStatus.enabled ? 'Disable' : 'Enable'} LAN
+      <div style={{ marginTop: 8 }}>
+        <input
+          className="form-input"
+          type="password"
+          value={lanPassphrase}
+          onChange={(event) => setLanPassphrase(event.target.value)}
+          placeholder={bootstrap.lanStatus.passphraseConfigured ? 'Rotate saved LAN passphrase' : 'Set a LAN passphrase'}
+        />
+        <div className="form-hint" style={{ marginTop: 6 }}>
+          LAN clients must send `Authorization: Bearer &lt;your-passphrase&gt;`. The passphrase is stored locally and never shown back in the UI.
+        </div>
+        {lanError && (
+          <div style={{ color: 'var(--red)', fontSize: 11, marginTop: 6 }}>{lanError}</div>
+        )}
+      </div>
+      <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <button className="btn btn--ghost btn--small" onClick={saveLanPassphrase} disabled={lanSaving}>
+          {lanSaving ? 'Saving…' : bootstrap.lanStatus.passphraseConfigured ? 'Rotate Pass' : 'Save Pass'}
         </button>
-        {!bootstrap.lanStatus.publicUrl && bootstrap.lanStatus.enabled && (
-          <button className="btn btn--ghost btn--small" onClick={handleLanExpose}>
-            Expose to LAN
+        <button className="btn btn--ghost btn--small" onClick={() => applyLanState(true, false)} disabled={lanSaving}>
+          Local Only
+        </button>
+        <button className="btn btn--ghost btn--small" onClick={() => applyLanState(true, true)} disabled={lanSaving}>
+          Expose on LAN
+        </button>
+        {bootstrap.lanStatus.enabled && (
+          <button className="btn btn--ghost btn--small" onClick={() => applyLanState(false, bootstrap.lanStatus.exposeToLan)} disabled={lanSaving}>
+            Disable
           </button>
         )}
       </div>
+      {bootstrap.lanStatus.publicUrl && (
+        <div className="form-hint" style={{ marginTop: 8 }}>
+          Example:
+          {' '}
+          <span className="mono">curl -H "Authorization: Bearer &lt;passphrase&gt;" {bootstrap.lanStatus.publicUrl}/api/portfolio/summary</span>
+        </div>
+      )}
 
       {/* Danger zone — inline confirm, no native dialogs */}
       <div style={{ marginTop: 16, borderTop: '1px solid rgba(224,80,80,0.25)', paddingTop: 10 }}>

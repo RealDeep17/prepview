@@ -1,46 +1,64 @@
-# Cassini
+# PrepView
 
-Cassini is a fully local desktop portfolio product for serious derivatives traders.
-It is built as a Tauri v2 application with a Rust core, a React + TypeScript frontend,
-encrypted local storage, app-local secret handling with strict file permissions, and an
-optional read-only LAN projection layer.
+PrepView is a local-first desktop portfolio app for derivatives traders who want trustworthy review surfaces for live, manual, and imported books without drifting into terminal or execution scope.
 
-## Product boundary
+![PrepView logo](./prepview.svg)
+
+## What It Does
+
+- Tracks derivatives portfolios locally across BloFin, Hyperliquid, CSV imports, and manual books
+- Keeps portfolio, exposure, history, journal, and sync health in one dense desktop workspace
+- Uses read-only exchange integrations only
+- Ships optional read-only LAN projection for local dashboards and mirrors
+
+## Product Boundary
 
 - Portfolio only
-- Read-only exchange integrations
-- BloFin and Hyperliquid are the mandatory live connectors for v0.01
-- CSV and manual workflows are first-class, not fallback-only
-- AI screenshot import is intentionally out of scope until the core product is proven
+- Read-only exchange integrations only
+- No order routing, execution, automation, or backtesting
+- No fake KPIs, placeholder analytics, or speculative AI features
 
-## Getting started
+## Security Posture
+
+- Local-first application data flow
+- Encrypted local database
+- App-local secret files with restrictive filesystem permissions
+- No OS keychain prompt or OS login prompt required during normal startup
+- LAN projection disabled by default, loopback-only by default, and protected by a user-set bearer passphrase
+
+## First Public Release Scope
+
+PrepView is being prepared for desktop release only:
+
+- macOS `x64` and `arm64`
+- Windows `x64` and `arm64`
+- Linux `x64` and `arm64`
+
+iPhone, iPad, and Android are not in scope for the first public release.
+
+## Getting Started
 
 ```bash
 npm install
 npm run tauri:dev
 ```
 
-For frontend-only tests:
+## Verification
 
 ```bash
-npm run test
-```
-
-For the full local verification pass:
-
-```bash
+npm run lint
 npm run check
 ```
 
-## Reference snapshots
+## Docs
 
-The `references/` directory contains the reference material that implementation work is
-allowed to use:
+- [Architecture](docs/ARCHITECTURE.md)
+- [Development](docs/DEVELOPMENT.md)
+- [Acceptance](docs/ACCEPTANCE.md)
+- [Connector evidence](docs/CONNECTOR_EVIDENCE.md)
+- [Security policy](SECURITY.md)
+- [Contributing](CONTRIBUTING.md)
 
-- `references/nexus-terminal/` for the legacy in-house portfolio code and spec snapshot
-- `references/crypto-pnl-tracker-ref/` for the closest open-source tracker baseline
-- `docs/OSS_EVALUATION.md` for the bounded salvage decision and external product/repo review
-- `docs/CONNECTOR_EVIDENCE.md` for official API sources and local fixture provenance
+## Archive
 
-No implementation work should drift back into `../src` or any other part of the original
-`Nexus-Terminal` repo.
+Historical research, internal planning notes, mockups, and one-off investigation material live in [`.archive/`](.archive/README.md). They are intentionally kept out of the runtime and release surface.

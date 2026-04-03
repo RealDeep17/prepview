@@ -1,23 +1,24 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAppStore } from '../store/appStore';
 import { addManualPosition, getExchangeMarkets, getExchangeMarketQuote } from '../lib/bridge';
 import { fmtCurrency } from '../lib/fmt';
 import type { ExchangeKind, ExchangeMarket, PositionSide, MarginMode } from '../lib/types';
 
+type QuantityMode = 'contract' | 'token' | 'usd';
+
 export function AddPositionOverlay() {
   const closeOverlay = useAppStore((s) => s.closeOverlay);
   const fetchBootstrap = useAppStore((s) => s.fetchBootstrap);
   const bootstrap = useAppStore((s) => s.bootstrap);
+  const selectedAccountId = useAppStore((s) => s.selectedAccountId);
 
   const allAccounts = bootstrap?.accounts ?? [];
 
-  const [accountId, setAccountId] = useState(allAccounts[0]?.id ?? '');
+  const [accountId, setAccountId] = useState(selectedAccountId ?? allAccounts[0]?.id ?? '');
   const [symbol, setSymbol] = useState('');
   const [exchangeSymbol, setExchangeSymbol] = useState('');
   const [side, setSide] = useState<PositionSide>('long');
   const [marginMode, setMarginMode] = useState<MarginMode | ''>('cross');
-  
-  type QuantityMode = 'contract' | 'token' | 'usd';
   const [quantityMode, setQuantityMode] = useState<QuantityMode>('token');
   const [quantity, setQuantity] = useState('');
   const [entryPrice, setEntryPrice] = useState('');
@@ -36,6 +37,7 @@ export function AddPositionOverlay() {
 
   // Autocomplete state
   const [markets, setMarkets] = useState<ExchangeMarket[]>([]);
+  const [marketsExchange, setMarketsExchange] = useState<Extract<ExchangeKind, 'blofin' | 'hyperliquid'> | null>(null);
   const [loadingMarkets, setLoadingMarkets] = useState(false);
   const [showAc, setShowAc] = useState(false);
   const [highlightIdx, setHighlightIdx] = useState(0);
@@ -48,11 +50,16 @@ export function AddPositionOverlay() {
 
   // Fetch markets when account changes to a live exchange
   useEffect(() => {
-    if (!isLive) { setMarkets([]); return; }
+    if (!isLive) return;
     let cancelled = false;
     setLoadingMarkets(true);
-    getExchangeMarkets(exchange as 'blofin' | 'hyperliquid')
-      .then((data) => { if (!cancelled) setMarkets(data); })
+    getExchangeMarkets(exchange)
+      .then((data) => {
+        if (!cancelled) {
+          setMarkets(data);
+          setMarketsExchange(exchange);
+        }
+      })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoadingMarkets(false); });
     return () => { cancelled = true; };
@@ -60,15 +67,29 @@ export function AddPositionOverlay() {
 
   // Filter markets as user types
   const query = symbol.toUpperCase();
-  const filteredMarkets = query.length >= 1
-    ? markets.filter((m) =>
+  const activeMarkets = useMemo(
+    () => (isLive && marketsExchange === exchange ? markets : []),
+    [exchange, isLive, markets, marketsExchange],
+  );
+  const filteredMarkets = useMemo(() => (
+    query.length >= 1
+      ? activeMarkets.filter((m) =>
         m.symbol.toUpperCase().includes(query) ||
         m.exchangeSymbol.toUpperCase().includes(query) ||
         m.baseAsset.toUpperCase().includes(query)
       ).slice(0, 20)
-    : [];
+      : []
+  ), [activeMarkets, query]);
+  const selectedMarket = useMemo(
+    () => activeMarkets.find(
+      (market) =>
+        market.symbol.toUpperCase() === symbol.trim().toUpperCase() &&
+        market.exchange.toLowerCase() === exchange.toLowerCase(),
+    ),
+    [activeMarkets, exchange, symbol],
+  );
 
-  const handleSelectMarket = useCallback((market: ExchangeMarket) => {
+  const handleSelectMarket = (market: ExchangeMarket) => {
     setSymbol(market.symbol);
     setExchangeSymbol(market.exchangeSymbol);
     setShowAc(false);
@@ -80,17 +101,19 @@ export function AddPositionOverlay() {
       setLeverage(String(Math.min(market.maxLeverage, parseFloat(leverage) || 1)));
     }
     // Also fetch live quote
-    getExchangeMarketQuote(exchange as 'blofin' | 'hyperliquid', market.exchangeSymbol)
-      .then((quote) => {
-        if (quote.markPrice != null) {
-          setMarkPrice(String(quote.markPrice));
-          if (!entryPrice) setEntryPrice(String(quote.markPrice));
-        }
-      })
-      .catch(() => {});
-  }, [exchange, leverage, entryPrice]);
+    if (exchange === 'blofin' || exchange === 'hyperliquid') {
+      getExchangeMarketQuote(exchange, market.exchangeSymbol)
+        .then((quote) => {
+          if (quote.markPrice != null) {
+            setMarkPrice(String(quote.markPrice));
+            if (!entryPrice) setEntryPrice(String(quote.markPrice));
+          }
+        })
+        .catch(() => {});
+    }
+  };
 
-  const handleSymbolKeyDown = useCallback((e: React.KeyboardEvent) => {
+  const handleSymbolKeyDown = (e: React.KeyboardEvent) => {
     if (!showAc || filteredMarkets.length === 0) return;
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -104,9 +127,9 @@ export function AddPositionOverlay() {
     } else if (e.key === 'Escape') {
       setShowAc(false);
     }
-  }, [showAc, filteredMarkets, highlightIdx, handleSelectMarket]);
+  };
 
-  const handleSubmit = useCallback(async () => {
+  const handleSubmit = async () => {
     if (!symbol.trim()) { setError('Symbol is required'); return; }
     if (!quantity || parseFloat(quantity) <= 0) { setError('Quantity must be > 0'); return; }
     if (!entryPrice || parseFloat(entryPrice) <= 0) { setError('Entry price must be > 0'); return; }
@@ -114,10 +137,7 @@ export function AddPositionOverlay() {
 
     let rawQuantity = parseFloat(quantity);
     if (!isNaN(rawQuantity)) {
-      const market = markets.find(
-        (m) => m.symbol.toUpperCase() === symbol.trim().toUpperCase() && m.exchange.toLowerCase() === exchange.toLowerCase()
-      );
-      const faceValue = market?.contractValue ?? 1.0;
+      const faceValue = selectedMarket?.contractValue ?? 1.0;
       if (quantityMode === 'token') {
         rawQuantity = rawQuantity / faceValue;
       } else if (quantityMode === 'usd') {
@@ -155,9 +175,10 @@ export function AddPositionOverlay() {
       closeOverlay();
     } catch (e) {
       setError(String(e));
+    } finally {
+      setSubmitting(false);
     }
-    setSubmitting(false);
-  }, [accountId, exchange, exchangeSymbol, symbol, marginMode, side, quantity, entryPrice, markPrice, leverage, marginUsed, liquidationPrice, maintenanceMargin, feePaid, fundingPaid, takeProfit, stopLoss, notes, fetchBootstrap, closeOverlay]);
+  };
 
   return (
     <>
@@ -180,8 +201,8 @@ export function AddPositionOverlay() {
             <label className="form-label">
               Symbol
               {isLive && loadingMarkets && <span style={{ color: 'var(--text-muted)', marginLeft: 6 }}>loading markets…</span>}
-              {isLive && !loadingMarkets && markets.length > 0 && (
-                <span style={{ color: 'var(--accent)', marginLeft: 6 }}>{markets.length} pairs</span>
+              {isLive && !loadingMarkets && activeMarkets.length > 0 && (
+                <span style={{ color: 'var(--accent)', marginLeft: 6 }}>{activeMarkets.length} pairs</span>
               )}
             </label>
             <div className="symbol-ac-wrap" ref={acRef}>

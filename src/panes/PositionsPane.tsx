@@ -1,21 +1,36 @@
-import { useState } from 'react';
-import { useAppStore, scopedPositions } from '../store/appStore';
-import { useContextMenu } from '../shell/ContextMenu';
-import { useToast } from '../shell/Toast';
+import { useMemo, useState } from 'react';
+import { useAppStore } from '../store/appStore';
+import { useContextMenu, type CtxMenuItem } from '../shell/contextMenuContext';
+import { useToast } from '../shell/toastContext';
 import { fmtCurrency, fmtPnl, fmtPnlClass, fmtNumber } from '../lib/fmt';
 import { deleteManualPosition, syncLiveAccount } from '../lib/bridge';
 
 export function PositionsPane() {
-  const state = useAppStore.getState();
+  const bootstrap = useAppStore((s) => s.bootstrap);
+  const scopeExchange = useAppStore((s) => s.scopeExchange);
+  const scopeAccountId = useAppStore((s) => s.scopeAccountId);
   const selectedPositionId = useAppStore((s) => s.selectedPositionId);
   const setSelectedPositionId = useAppStore((s) => s.setSelectedPositionId);
   const openOverlay = useAppStore((s) => s.openOverlay);
   const fetchBootstrap = useAppStore((s) => s.fetchBootstrap);
-  const bootstrap = useAppStore((s) => s.bootstrap);
-  const positions = scopedPositions(state);
   const { show: showCtx } = useContextMenu();
   const { toast } = useToast();
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  const positions = useMemo(() => {
+    if (!bootstrap) return [];
+
+    let accounts = bootstrap.accounts;
+    if (scopeExchange !== 'all') {
+      accounts = accounts.filter((account) => account.exchange === scopeExchange);
+    }
+    if (scopeAccountId) {
+      accounts = accounts.filter((account) => account.id === scopeAccountId);
+    }
+
+    const accountIds = new Set(accounts.map((account) => account.id));
+    return bootstrap.positions.filter((position) => accountIds.has(position.accountId));
+  }, [bootstrap, scopeAccountId, scopeExchange]);
 
   const handleDelete = async (posId: string, posSymbol: string) => {
     try {
@@ -38,7 +53,7 @@ export function PositionsPane() {
       const account = bootstrap.accounts.find(a => a.id === posAccountId);
       return account?.accountMode === 'manual' || account?.accountMode === 'import';
     })();
-    const items = [];
+    const items: CtxMenuItem[] = [];
 
     if (isManual) {
       items.push(

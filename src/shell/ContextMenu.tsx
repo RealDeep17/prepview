@@ -1,31 +1,9 @@
-import { useState, useEffect, useCallback, createContext, useContext, useRef } from 'react';
-
-export interface CtxMenuItem {
-  label: string;
-  action: () => void;
-  danger?: boolean;
-}
-
-type CtxMenuState = {
-  x: number;
-  y: number;
-  items: CtxMenuItem[];
-  header?: string;
-} | null;
-
-interface CtxMenuContextType {
-  show: (x: number, y: number, items: CtxMenuItem[], header?: string) => void;
-  close: () => void;
-}
-
-const CtxMenuContext = createContext<CtxMenuContextType>({
-  show: () => {},
-  close: () => {},
-});
-
-export function useContextMenu() {
-  return useContext(CtxMenuContext);
-}
+import { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  CtxMenuContext,
+  type CtxMenuItem,
+  type CtxMenuState,
+} from './contextMenuContext';
 
 export function ContextMenuProvider({ children }: { children: React.ReactNode }) {
   const [menu, setMenu] = useState<CtxMenuState>(null);

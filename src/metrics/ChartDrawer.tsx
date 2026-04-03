@@ -401,7 +401,7 @@ export function ChartDrawer() {
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
-  }, [open, height]);
+  }, [height]);
 
   if (!open) return null;
 

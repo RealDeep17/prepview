@@ -37,24 +37,28 @@ export function TopBar() {
   const toggleLeftPanel  = useAppStore((s) => s.toggleLeftPanel);
   const toggleRightPanel = useAppStore((s) => s.toggleRightPanel);
   const toggleChart      = useAppStore((s) => s.toggleChart);
-  const [countdown, setCountdown] = useState<number | null>(null);
+  const [nowTick, setNowTick] = useState(() => Date.now());
   const [zoom, setZoom] = useState(1);
   const [zoomOpen, setZoomOpen] = useState(false);
   const zoomRef = useRef<HTMLDivElement>(null);
 
   const sync = bootstrap?.syncHealthSummary;
   const autoSync = bootstrap?.autoSyncStatus;
+  const nextScheduledMs = autoSync?.nextScheduledAt
+    ? new Date(autoSync.nextScheduledAt).getTime()
+    : null;
 
   useEffect(() => {
-    if (!autoSync?.nextScheduledAt) { setCountdown(null); return; }
-    const tick = () => {
-      const remaining = Math.max(0, Math.floor((new Date(autoSync.nextScheduledAt!).getTime() - Date.now()) / 1000));
-      setCountdown(remaining);
-    };
-    tick();
-    const id = setInterval(tick, 1000);
+    if (!nextScheduledMs) return;
+    const id = setInterval(() => {
+      setNowTick(Date.now());
+    }, 1000);
     return () => clearInterval(id);
-  }, [autoSync?.nextScheduledAt]);
+  }, [nextScheduledMs]);
+
+  const countdownValue = nextScheduledMs
+    ? Math.max(0, Math.floor((nextScheduledMs - nowTick) / 1000))
+    : null;
 
   // Close zoom dropdown on outside click
   useEffect(() => {
@@ -169,7 +173,7 @@ export function TopBar() {
       <div className="sync-badge" onClick={handleSyncAll} style={{ cursor: 'pointer' }} title="Click to sync all">
         <span className={`sync-dot ${dotClass}`} />
         <span>{sync?.label ?? 'local'}</span>
-        {countdown !== null && <span>· {countdown}s</span>}
+        {countdownValue !== null && <span>· {countdownValue}s</span>}
       </div>
 
       <button className="btn btn--ghost btn--small" onClick={handleRefreshQuotes} title="Refresh quotes">

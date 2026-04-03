@@ -120,11 +120,7 @@ pub async fn fetch_exchange_risk_tiers(
                 let rows = connector
                     .fetch_position_tiers_response(exchange_symbol, mode)
                     .await?;
-                tiers.extend(parse_blofin_risk_tiers(
-                    exchange_symbol,
-                    mode,
-                    &rows,
-                ));
+                tiers.extend(parse_blofin_risk_tiers(exchange_symbol, mode, &rows));
             }
 
             Ok(tiers)
@@ -192,14 +188,12 @@ impl HyperliquidConnector {
             .ok_or_else(|| AppError::message("Hyperliquid allMids response was not an object"))
     }
 
-    async fn fetch_predicted_fundings(&self, dex: Option<&str>) -> AppResult<Vec<HyperliquidFundingRow>> {
+    async fn fetch_predicted_fundings(
+        &self,
+        dex: Option<&str>,
+    ) -> AppResult<Vec<HyperliquidFundingRow>> {
         let mut payload = serde_json::json!({ "type": "predictedFundings" });
-        if let Some(d) = dex {
-            if d != "HL" {
-                payload.as_object_mut().unwrap().insert("dex".to_string(), serde_json::Value::String(d.to_string()));
-            }
-        }
-        log::info!("HL predictedFundings payload: {}", serde_json::to_string(&payload).unwrap());
+        insert_hyperliquid_dex(&mut payload, dex);
         self.client
             .post(HYPERLIQUID_INFO_URL)
             .json(&payload)
@@ -212,7 +206,8 @@ impl HyperliquidConnector {
     }
 
     async fn fetch_perp_dexs(&self) -> AppResult<Vec<HyperliquidPerpDex>> {
-        let raw = self.client
+        let raw = self
+            .client
             .post(HYPERLIQUID_INFO_URL)
             .json(&serde_json::json!({
                 "type": "perpDexs",
@@ -225,15 +220,14 @@ impl HyperliquidConnector {
         Ok(raw.into_iter().flatten().collect())
     }
 
-    async fn fetch_meta_and_asset_contexts(&self, dex: Option<&str>) -> AppResult<HyperliquidMetaAndAssetCtxs> {
+    async fn fetch_meta_and_asset_contexts(
+        &self,
+        dex: Option<&str>,
+    ) -> AppResult<HyperliquidMetaAndAssetCtxs> {
         let mut payload = serde_json::json!({
             "type": "metaAndAssetCtxs",
         });
-        if let Some(d) = dex {
-            if d != "HL" {
-                payload.as_object_mut().unwrap().insert("dex".to_string(), serde_json::Value::String(d.to_string()));
-            }
-        }
+        insert_hyperliquid_dex(&mut payload, dex);
         self.client
             .post(HYPERLIQUID_INFO_URL)
             .json(&payload)
@@ -249,11 +243,7 @@ impl HyperliquidConnector {
         let mut payload = serde_json::json!({
             "type": "meta",
         });
-        if let Some(d) = dex {
-            if d != "HL" {
-                payload.as_object_mut().unwrap().insert("dex".to_string(), serde_json::Value::String(d.to_string()));
-            }
-        }
+        insert_hyperliquid_dex(&mut payload, dex);
         self.client
             .post(HYPERLIQUID_INFO_URL)
             .json(&payload)
@@ -439,16 +429,11 @@ impl ExchangeConnector for HyperliquidConnector {
         let lookup_symbol = hyperliquid_exchange_symbol(exchange_symbol);
         let dex_name = lookup_symbol.split_once(':').map(|(d, _)| d.to_lowercase());
         let dex = dex_name.as_deref();
-        
-        log::info!("Fetching quote for: {}, lookup: {}, dex: {:?}", exchange_symbol, lookup_symbol, dex);
 
         let (payload, predicted_fundings) = tokio::try_join!(
             self.fetch_meta_and_asset_contexts(dex),
             self.fetch_predicted_fundings(dex)
-        ).map_err(|e| {
-            log::error!("try_join failed inside fetch_market_quote! Error: {:?}", e);
-            e
-        })?;
+        )?;
         let markets = parse_hyperliquid_markets(&payload, self);
         let market = markets
             .into_iter()
@@ -463,10 +448,12 @@ impl ExchangeConnector for HyperliquidConnector {
             if row.0.eq_ignore_ascii_case(&lookup_symbol) {
                 row.1.into_iter().find_map(|(venue, details)| {
                     if venue == "HlPerp" {
-                        details.map(|d| (
-                            parse_decimal(Some(d.funding_rate.as_str())),
-                            Some(millis_to_datetime(d.next_funding_time)),
-                        ))
+                        details.map(|d| {
+                            (
+                                parse_decimal(Some(d.funding_rate.as_str())),
+                                Some(millis_to_datetime(d.next_funding_time)),
+                            )
+                        })
                     } else {
                         None
                     }
@@ -682,10 +669,13 @@ impl BlofinConnector {
             "/api/v1/market/position-tiers",
             &[
                 ("instId", exchange_symbol),
-                ("marginMode", match margin_mode {
-                    MarginMode::Cross => "cross",
-                    MarginMode::Isolated => "isolated",
-                }),
+                (
+                    "marginMode",
+                    match margin_mode {
+                        MarginMode::Cross => "cross",
+                        MarginMode::Isolated => "isolated",
+                    },
+                ),
             ],
         )
         .await
@@ -891,6 +881,24 @@ fn parse_decimal(raw: Option<&str>) -> Option<f64> {
 
 fn quantity_step_from_decimals(decimals: u32) -> f64 {
     10_f64.powi(-(decimals as i32))
+}
+
+fn normalized_hyperliquid_dex(dex: &str) -> Option<String> {
+    let normalized = dex.trim().to_lowercase();
+    if normalized.is_empty() || normalized == "hl" {
+        None
+    } else {
+        Some(normalized)
+    }
+}
+
+fn insert_hyperliquid_dex(payload: &mut serde_json::Value, dex: Option<&str>) {
+    if let Some(normalized) = dex.and_then(normalized_hyperliquid_dex) {
+        payload
+            .as_object_mut()
+            .expect("hyperliquid payload should be an object")
+            .insert("dex".to_string(), serde_json::Value::String(normalized));
+    }
 }
 
 fn hyperliquid_exchange_symbol(raw: &str) -> String {
@@ -1115,36 +1123,23 @@ fn parse_hyperliquid_risk_tiers(
                 "Hyperliquid market {lookup} was not found in metadata"
             ))
         })?;
-    let margin_table_id = asset.margin_table_id.ok_or_else(|| {
-        AppError::message(format!(
-            "Hyperliquid market {lookup} did not include a margin table id"
-        ))
-    })?;
-    let margin_tables = meta.margin_tables.as_ref().ok_or_else(|| {
-        AppError::message("Hyperliquid meta response did not include margin tables")
-    })?;
-    let (_, table) = margin_tables
-        .iter()
-        .find(|(table_id, _)| *table_id == margin_table_id)
-        .ok_or_else(|| {
-            AppError::message(format!(
-                "Hyperliquid margin table {margin_table_id} was not found"
-            ))
-        })?;
-
-    let parsed = table
-        .margin_tiers
-        .iter()
-        .enumerate()
-        .map(|(index, tier)| {
-            (
-                index,
-                parse_decimal(Some(tier.lower_bound.as_str())).unwrap_or(0.0),
-                1.0 / (tier.max_leverage * 2.0),
-                tier.max_leverage,
-            )
+    let parsed = if let Some((_, table)) = asset
+        .margin_table_id
+        .and_then(|margin_table_id| {
+            meta.margin_tables.as_ref().and_then(|margin_tables| {
+                margin_tables
+                    .iter()
+                    .find(|(table_id, _)| *table_id == margin_table_id)
+            })
         })
-        .collect::<Vec<_>>();
+    {
+        parse_hyperliquid_margin_tiers(&table.margin_tiers)
+    } else {
+        // HIP-3 DEX metadata can expose per-asset max leverage while returning an incomplete
+        // marginTables set. Fall back to a single explicit tier from the asset's live max leverage
+        // instead of blocking manual portfolio entry.
+        vec![(0, 0.0, 1.0 / (asset.max_leverage * 2.0), asset.max_leverage)]
+    };
     let mut tiers = Vec::new();
 
     for (index, lower_bound, maintenance_margin_rate, max_leverage) in &parsed {
@@ -1176,6 +1171,22 @@ fn parse_hyperliquid_risk_tiers(
     }
 
     Ok(tiers)
+}
+
+fn parse_hyperliquid_margin_tiers(
+    tiers: &[HyperliquidMarginTier],
+) -> Vec<(usize, f64, f64, f64)> {
+    tiers.iter()
+        .enumerate()
+        .map(|(index, tier)| {
+            (
+                index,
+                parse_decimal(Some(tier.lower_bound.as_str())).unwrap_or(0.0),
+                1.0 / (tier.max_leverage * 2.0),
+                tier.max_leverage,
+            )
+        })
+        .collect()
 }
 
 fn parse_blofin_risk_tiers(
@@ -1554,5 +1565,49 @@ mod tests {
         assert_eq!(markets[0].exchange_symbol, "BTC-USDT");
         assert_eq!(markets[0].symbol, "BTC-PERP");
         assert_eq!(markets[0].max_leverage, Some(150.0));
+    }
+
+    #[test]
+    fn normalizes_hyperliquid_hip3_dex_names_for_info_requests() {
+        assert_eq!(normalized_hyperliquid_dex("XYZ").as_deref(), Some("xyz"));
+        assert_eq!(normalized_hyperliquid_dex(" xyz ").as_deref(), Some("xyz"));
+        assert_eq!(normalized_hyperliquid_dex("HL"), None);
+    }
+
+    #[test]
+    fn falls_back_to_asset_max_leverage_when_hip3_margin_table_is_missing() {
+        let meta = serde_json::from_value::<HyperliquidMeta>(serde_json::json!({
+            "universe": [
+                {
+                    "szDecimals": 4,
+                    "name": "xyz:GOLD",
+                    "maxLeverage": 25,
+                    "marginTableId": 25
+                }
+            ],
+            "marginTables": [
+                [
+                    50,
+                    {
+                        "description": "",
+                        "marginTiers": [
+                            {
+                                "lowerBound": "0.0",
+                                "maxLeverage": 50
+                            }
+                        ]
+                    }
+                ]
+            ]
+        }))
+        .expect("meta fixture should parse");
+
+        let tiers = parse_hyperliquid_risk_tiers("XYZ:GOLD", &meta)
+            .expect("risk tiers should fall back to asset max leverage");
+
+        assert_eq!(tiers.len(), 1);
+        assert_eq!(tiers[0].exchange_symbol, "XYZ:GOLD");
+        assert_close(tiers[0].maintenance_margin_rate, 0.02);
+        assert_close(tiers[0].max_leverage, 25.0);
     }
 }

@@ -152,7 +152,7 @@ export interface LanStatus {
   exposeToLan: boolean;
   bindAddress?: string | null;
   publicUrl?: string | null;
-  token?: string | null;
+  passphraseConfigured: boolean;
 }
 
 export interface AutoSyncStatus {

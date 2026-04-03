@@ -1,36 +1,49 @@
-import { useState, useCallback, useEffect } from 'react';
-import { useAppStore, selectedPosition } from '../store/appStore';
+import { useState } from 'react';
+import { useAppStore } from '../store/appStore';
 import { updateManualPosition, closeManualPosition } from '../lib/bridge';
-import type { PositionSide, MarginMode } from '../lib/types';
+import type { ExchangeMarket, MarginMode, PositionSide } from '../lib/types';
+
+type QuantityMode = 'contract' | 'token' | 'usd';
 
 export function EditPositionOverlay() {
   const closeOverlay = useAppStore((s) => s.closeOverlay);
   const fetchBootstrap = useAppStore((s) => s.fetchBootstrap);
-  const state = useAppStore.getState();
-  const position = selectedPosition(state);
+  const bootstrap = useAppStore((s) => s.bootstrap);
+  const position = useAppStore((s) => {
+    const positionId = s.editingPositionId ?? s.selectedPositionId;
+    if (!positionId || !s.bootstrap) return null;
+    return s.bootstrap.positions.find((entry) => entry.id === positionId) ?? null;
+  });
 
   const [showClose, setShowClose] = useState(false);
 
   // Edit fields
-  const [symbol, setSymbol] = useState('');
-  const [exchangeSymbol, setExchangeSymbol] = useState('');
-  const [side, setSide] = useState<PositionSide>('long');
-  const [marginMode, setMarginMode] = useState<MarginMode | ''>('');
-  
-  type QuantityMode = 'contract' | 'token' | 'usd';
+  const [symbol, setSymbol] = useState(() => position?.symbol ?? '');
+  const [exchangeSymbol, setExchangeSymbol] = useState(() => position?.exchangeSymbol ?? '');
+  const [side, setSide] = useState<PositionSide>(() => position?.side ?? 'long');
+  const [marginMode, setMarginMode] = useState<MarginMode | ''>(() => position?.marginMode ?? '');
   const [quantityMode, setQuantityMode] = useState<QuantityMode>('contract');
-  const [quantity, setQuantity] = useState('');
-  const [entryPrice, setEntryPrice] = useState('');
-  const [markPrice, setMarkPrice] = useState('');
-  const [leverage, setLeverage] = useState('');
-  const [marginUsed, setMarginUsed] = useState('');
-  const [liquidationPrice, setLiquidationPrice] = useState('');
-  const [maintenanceMargin, setMaintenanceMargin] = useState('');
-  const [feePaid, setFeePaid] = useState('');
-  const [fundingPaid, setFundingPaid] = useState('');
-  const [takeProfit, setTakeProfit] = useState('');
-  const [stopLoss, setStopLoss] = useState('');
-  const [notes, setNotes] = useState('');
+  const [quantity, setQuantity] = useState(() => position ? String(position.quantity) : '');
+  const [entryPrice, setEntryPrice] = useState(() => position ? String(position.entryPrice) : '');
+  const [markPrice, setMarkPrice] = useState(() => position?.markPrice != null ? String(position.markPrice) : '');
+  const [leverage, setLeverage] = useState(() => position ? String(position.leverage) : '');
+  const [marginUsed, setMarginUsed] = useState(() => {
+    if (!position || position.riskSource === 'local_engine' || position.marginUsed == null) return '';
+    return String(position.marginUsed);
+  });
+  const [liquidationPrice] = useState(() => {
+    if (!position || position.riskSource === 'local_engine' || position.liquidationPrice == null) return '';
+    return String(position.liquidationPrice);
+  });
+  const [maintenanceMargin] = useState(() => {
+    if (!position || position.riskSource === 'local_engine' || position.maintenanceMargin == null) return '';
+    return String(position.maintenanceMargin);
+  });
+  const [feePaid, setFeePaid] = useState(() => position ? String(position.feePaid) : '');
+  const [fundingPaid, setFundingPaid] = useState(() => position ? String(position.fundingPaid) : '');
+  const [takeProfit, setTakeProfit] = useState(() => position?.takeProfit != null ? String(position.takeProfit) : '');
+  const [stopLoss, setStopLoss] = useState(() => position?.stopLoss != null ? String(position.stopLoss) : '');
+  const [notes, setNotes] = useState(() => position?.notes ?? '');
 
   // Close fields
   const [exitPrice, setExitPrice] = useState('');
@@ -42,22 +55,28 @@ export function EditPositionOverlay() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  const currentMarket: ExchangeMarket | undefined = position
+    ? bootstrap?.markets.find(
+        (market) =>
+          market.symbol.toUpperCase() === position.symbol.toUpperCase() &&
+          market.exchange.toLowerCase() === position.exchange.toLowerCase(),
+      )
+    : undefined;
+
   const convertQty = (valStr: string, oldMode: QuantityMode, newMode: QuantityMode): string => {
     if (!valStr || isNaN(parseFloat(valStr))) return valStr;
     const currentVal = parseFloat(valStr);
-    const bs = useAppStore.getState().bootstrap;
-    const market = bs?.markets?.find((m: any) => m.symbol.toUpperCase() === position?.symbol.toUpperCase() && m.exchange.toLowerCase() === position?.exchange.toLowerCase());
-    const faceValue = market?.contractValue ?? 1.0;
+    const faceValue = currentMarket?.contractValue ?? 1.0;
     const entryPx = parseFloat(entryPrice) || position?.entryPrice || 1.0;
-    
+
     let rawContracts = currentVal;
     if (oldMode === 'token') rawContracts = currentVal / faceValue;
     else if (oldMode === 'usd') rawContracts = currentVal / (entryPx * faceValue);
-    
+
     let newVal = rawContracts;
     if (newMode === 'token') newVal = rawContracts * faceValue;
     else if (newMode === 'usd') newVal = rawContracts * faceValue * entryPx;
-    
+
     return String(Number(newVal.toFixed(8)));
   };
 
@@ -68,37 +87,14 @@ export function EditPositionOverlay() {
     setQuantityMode(newMode);
   };
 
-  useEffect(() => {
-    if (!position) return;
-    setSymbol(position.symbol);
-    setExchangeSymbol(position.exchangeSymbol ?? '');
-    setSide(position.side);
-    setMarginMode(position.marginMode ?? '');
-    setQuantity(String(position.quantity));
-    setEntryPrice(String(position.entryPrice));
-    setMarkPrice(position.markPrice != null ? String(position.markPrice) : '');
-    setLeverage(String(position.leverage));
-    const isLocalEngine = position.riskSource === 'local_engine';
-    setMarginUsed(!isLocalEngine && position.marginUsed != null ? String(position.marginUsed) : '');
-    setLiquidationPrice(!isLocalEngine && position.liquidationPrice != null ? String(position.liquidationPrice) : '');
-    setMaintenanceMargin(!isLocalEngine && position.maintenanceMargin != null ? String(position.maintenanceMargin) : '');
-    setFeePaid(String(position.feePaid));
-    setFundingPaid(String(position.fundingPaid));
-    setTakeProfit(position.takeProfit != null ? String(position.takeProfit) : '');
-    setStopLoss(position.stopLoss != null ? String(position.stopLoss) : '');
-    setNotes(position.notes ?? '');
-  }, [position]);
-
-  const handleSave = useCallback(async () => {
+  const handleSave = async () => {
     if (!position || !quantity) return;
     setSubmitting(true);
     setError('');
 
     let rawQuantity = parseFloat(quantity);
     if (!isNaN(rawQuantity)) {
-      const bs = useAppStore.getState().bootstrap;
-      const market = bs?.markets?.find((m: any) => m.symbol.toUpperCase() === position.symbol.toUpperCase() && m.exchange.toLowerCase() === position.exchange.toLowerCase());
-      const faceValue = market?.contractValue ?? 1.0;
+      const faceValue = currentMarket?.contractValue ?? 1.0;
       if (quantityMode === 'token') rawQuantity = rawQuantity / faceValue;
       else if (quantityMode === 'usd') {
         const entryPx = parseFloat(entryPrice) || position.entryPrice || 1.0;
@@ -131,11 +127,12 @@ export function EditPositionOverlay() {
       closeOverlay();
     } catch (e) {
       setError(String(e));
+    } finally {
+      setSubmitting(false);
     }
-    setSubmitting(false);
-  }, [position, symbol, exchangeSymbol, side, marginMode, quantity, entryPrice, markPrice, leverage, marginUsed, liquidationPrice, maintenanceMargin, feePaid, fundingPaid, takeProfit, stopLoss, notes, fetchBootstrap, closeOverlay]);
+  };
 
-  const handleClose = useCallback(async () => {
+  const handleClose = async () => {
     if (!position) return;
     if (!exitPrice || parseFloat(exitPrice) <= 0) { setError('Exit price is required'); return; }
     setSubmitting(true);
@@ -145,9 +142,7 @@ export function EditPositionOverlay() {
     if (closeQty) {
       let numericQty = parseFloat(closeQty);
       if (!isNaN(numericQty)) {
-        const bs = useAppStore.getState().bootstrap;
-        const market = bs?.markets?.find((m: any) => m.symbol.toUpperCase() === position.symbol.toUpperCase() && m.exchange.toLowerCase() === position.exchange.toLowerCase());
-        const faceValue = market?.contractValue ?? 1.0;
+        const faceValue = currentMarket?.contractValue ?? 1.0;
         if (quantityMode === 'token') numericQty = numericQty / faceValue;
         else if (quantityMode === 'usd') {
           const entryPx = parseFloat(entryPrice) || position.entryPrice || 1.0;
@@ -171,9 +166,10 @@ export function EditPositionOverlay() {
       closeOverlay();
     } catch (e) {
       setError(String(e));
+    } finally {
+      setSubmitting(false);
     }
-    setSubmitting(false);
-  }, [position, exitPrice, closeQty, closeFee, closeFunding, closeNote, fetchBootstrap, closeOverlay]);
+  };
 
   if (!position) {
     return (

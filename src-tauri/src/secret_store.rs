@@ -65,6 +65,27 @@ fn live_credentials_path(secrets_dir: &Path, account_id: &str) -> PathBuf {
     secrets_dir.join(format!("live-account-{account_id}.json"))
 }
 
+pub fn store_lan_passphrase(secrets_dir: &Path, passphrase: &str) -> AppResult<()> {
+    ensure_secrets_dir(secrets_dir)?;
+    write_secret_file(&lan_passphrase_path(secrets_dir), passphrase.trim())
+}
+
+pub fn load_lan_passphrase(secrets_dir: &Path) -> AppResult<String> {
+    ensure_secrets_dir(secrets_dir)?;
+    read_secret_file(&lan_passphrase_path(secrets_dir))?.ok_or_else(|| {
+        crate::error::AppError::message("set a LAN passphrase before enabling LAN projection")
+    })
+}
+
+pub fn has_lan_passphrase(secrets_dir: &Path) -> AppResult<bool> {
+    ensure_secrets_dir(secrets_dir)?;
+    Ok(read_secret_file(&lan_passphrase_path(secrets_dir))?.is_some())
+}
+
+fn lan_passphrase_path(secrets_dir: &Path) -> PathBuf {
+    secrets_dir.join("lan-passphrase.txt")
+}
+
 fn read_secret_file(path: &Path) -> AppResult<Option<String>> {
     if !path.exists() {
         return Ok(None);

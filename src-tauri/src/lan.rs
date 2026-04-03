@@ -8,7 +8,7 @@ use axum::{
         ws::{Message, WebSocket, WebSocketUpgrade},
         Query, State,
     },
-    http::StatusCode,
+    http::{header, HeaderMap, StatusCode},
     response::IntoResponse,
     routing::get,
     Json, Router,
@@ -20,8 +20,6 @@ use tokio::{
     net::TcpListener,
     sync::{broadcast, oneshot},
 };
-use uuid::Uuid;
-
 use crate::{
     domain::{
         ClosedTradeQueryInput, ExchangeKind, LanStatus, PositionEventKind,
@@ -42,18 +40,12 @@ pub struct LanProjectionManager {
 #[derive(Clone)]
 struct LanServerState {
     services: Arc<AppServices>,
-    token: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct ViewerToken {
-    token: String,
+    passphrase: String,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PositionEventQuery {
-    token: String,
     account_id: Option<String>,
     exchange: Option<ExchangeKind>,
     event_kind: Option<PositionEventKind>,
@@ -66,7 +58,6 @@ struct PositionEventQuery {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ClosedTradeQuery {
-    token: String,
     account_id: Option<String>,
     exchange: Option<ExchangeKind>,
     symbol: Option<String>,
@@ -83,15 +74,15 @@ impl LanProjectionManager {
     pub async fn start_server(
         services: Arc<AppServices>,
         expose_to_lan: bool,
+        passphrase: String,
     ) -> AppResult<(LanStatus, oneshot::Sender<()>)> {
-        let token = Uuid::new_v4().to_string();
         let bind_address = projection_bind_address(expose_to_lan);
         let listener = TcpListener::bind(bind_address).await?;
         let public_host = projection_public_host(expose_to_lan);
-        let public_url = build_public_url(public_host, &token);
+        let public_url = build_public_url(public_host);
         let server_state = LanServerState {
             services,
-            token: token.clone(),
+            passphrase,
         };
 
         let router = Router::new()
@@ -121,7 +112,7 @@ impl LanProjectionManager {
             expose_to_lan,
             bind_address: Some(bind_address.to_string()),
             public_url: Some(public_url),
-            token: Some(token),
+            passphrase_configured: true,
         };
         Ok((status, shutdown))
     }
@@ -164,11 +155,8 @@ fn projection_public_host(expose_to_lan: bool) -> IpAddr {
     }
 }
 
-fn build_public_url(host: IpAddr, token: &str) -> String {
-    format!(
-        "http://{}:{}/api/portfolio/summary?token={token}",
-        host, DEFAULT_PORT
-    )
+fn build_public_url(host: IpAddr) -> String {
+    format!("http://{}:{}", host, DEFAULT_PORT)
 }
 
 async fn api_health() -> Json<serde_json::Value> {
@@ -180,9 +168,9 @@ async fn api_health() -> Json<serde_json::Value> {
 
 async fn api_summary(
     State(state): State<LanServerState>,
-    Query(query): Query<ViewerToken>,
+    headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    validate_token(&state, &query.token)?;
+    validate_authorization(&state, &headers)?;
     let snapshot = state
         .services
         .snapshot()
@@ -194,9 +182,9 @@ async fn api_summary(
 
 async fn api_accounts(
     State(state): State<LanServerState>,
-    Query(query): Query<ViewerToken>,
+    headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    validate_token(&state, &query.token)?;
+    validate_authorization(&state, &headers)?;
     let snapshot = state
         .services
         .snapshot()
@@ -208,9 +196,9 @@ async fn api_accounts(
 
 async fn api_positions(
     State(state): State<LanServerState>,
-    Query(query): Query<ViewerToken>,
+    headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    validate_token(&state, &query.token)?;
+    validate_authorization(&state, &headers)?;
     let snapshot = state
         .services
         .snapshot()
@@ -222,9 +210,10 @@ async fn api_positions(
 
 async fn api_position_events(
     State(state): State<LanServerState>,
+    headers: HeaderMap,
     Query(query): Query<PositionEventQuery>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    validate_token(&state, &query.token)?;
+    validate_authorization(&state, &headers)?;
     let started_at = parse_optional_timestamp(query.started_at)?;
     let ended_at = parse_optional_timestamp(query.ended_at)?;
     if let (Some(started_at), Some(ended_at)) = (started_at.as_ref(), ended_at.as_ref()) {
@@ -255,9 +244,9 @@ async fn api_position_events(
 
 async fn api_exposure(
     State(state): State<LanServerState>,
-    Query(query): Query<ViewerToken>,
+    headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    validate_token(&state, &query.token)?;
+    validate_authorization(&state, &headers)?;
     let snapshot = state
         .services
         .snapshot()
@@ -269,9 +258,10 @@ async fn api_exposure(
 
 async fn api_closed_trades(
     State(state): State<LanServerState>,
+    headers: HeaderMap,
     Query(query): Query<ClosedTradeQuery>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    validate_token(&state, &query.token)?;
+    validate_authorization(&state, &headers)?;
     let started_at = parse_optional_timestamp(query.started_at)?;
     let ended_at = parse_optional_timestamp(query.ended_at)?;
     if let (Some(started_at), Some(ended_at)) = (started_at.as_ref(), ended_at.as_ref()) {
@@ -301,9 +291,9 @@ async fn api_closed_trades(
 
 async fn api_performance(
     State(state): State<LanServerState>,
-    Query(query): Query<ViewerToken>,
+    headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    validate_token(&state, &query.token)?;
+    validate_authorization(&state, &headers)?;
     let snapshot = state
         .services
         .snapshot()
@@ -316,10 +306,10 @@ async fn api_performance(
 
 async fn ws_feed(
     State(state): State<LanServerState>,
-    Query(query): Query<ViewerToken>,
+    headers: HeaderMap,
     ws: WebSocketUpgrade,
 ) -> Result<impl IntoResponse, StatusCode> {
-    validate_token(&state, &query.token)?;
+    validate_authorization(&state, &headers)?;
     Ok(ws.on_upgrade(move |socket| ws_client(socket, state.services.clone())))
 }
 
@@ -360,8 +350,16 @@ async fn ws_client(mut socket: WebSocket, services: Arc<AppServices>) {
     }
 }
 
-fn validate_token(state: &LanServerState, token: &str) -> Result<(), StatusCode> {
-    if state.token == token {
+fn validate_authorization(state: &LanServerState, headers: &HeaderMap) -> Result<(), StatusCode> {
+    let value = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|header_value| header_value.to_str().ok())
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+    let (scheme, credentials) = value.split_once(' ').ok_or(StatusCode::UNAUTHORIZED)?;
+    if !scheme.eq_ignore_ascii_case("bearer") {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    if credentials.trim() == state.passphrase {
         Ok(())
     } else {
         Err(StatusCode::UNAUTHORIZED)
@@ -401,8 +399,8 @@ mod tests {
     #[test]
     fn public_url_uses_requested_host() {
         assert_eq!(
-            build_public_url(IpAddr::V4(Ipv4Addr::LOCALHOST), "abc123"),
-            format!("http://127.0.0.1:{DEFAULT_PORT}/api/portfolio/summary?token=abc123")
+            build_public_url(IpAddr::V4(Ipv4Addr::LOCALHOST)),
+            format!("http://127.0.0.1:{DEFAULT_PORT}")
         );
     }
 }

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAppStore } from '../store/appStore';
-import { useContextMenu } from '../shell/ContextMenu';
-import { useToast } from '../shell/Toast';
+import { useContextMenu, type CtxMenuItem } from '../shell/contextMenuContext';
+import { useToast } from '../shell/toastContext';
 import { fmtCurrency, fmtPnl, fmtPnlClass, fmtPercent, fmtRelativeTime, exchangeTagClass, syncDotClass } from '../lib/fmt';
 import { deleteAccount, syncLiveAccount } from '../lib/bridge';
 
@@ -50,7 +50,7 @@ export function AccountsRail() {
     e.stopPropagation();
     setSelectedAccountId(accountId);
 
-    const items: import('../shell/ContextMenu').CtxMenuItem[] = [
+    const items: CtxMenuItem[] = [
       { label: 'Edit Account', action: () => { setSelectedAccountId(accountId); openOverlay('edit-account'); } },
       { label: 'Add Position', action: () => { setSelectedAccountId(accountId); setScopeAccountId(accountId); openOverlay('add-position'); } },
     ];

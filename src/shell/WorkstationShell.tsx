@@ -27,6 +27,9 @@ export function WorkstationShell() {
   const activeTab      = useAppStore((s) => s.activeTab);
   const setActiveTab   = useAppStore((s) => s.setActiveTab);
   const activeOverlay  = useAppStore((s) => s.activeOverlay);
+  const selectedAccountId = useAppStore((s) => s.selectedAccountId);
+  const selectedPositionId = useAppStore((s) => s.selectedPositionId);
+  const editingPositionId = useAppStore((s) => s.editingPositionId);
   const leftPanelOpen  = useAppStore((s) => s.leftPanelOpen);
   const rightPanelOpen = useAppStore((s) => s.rightPanelOpen);
 
@@ -80,9 +83,11 @@ export function WorkstationShell() {
       </div>
 
       {activeOverlay === 'add-account'   && <AddAccountOverlay />}
-      {activeOverlay === 'edit-account'  && <EditAccountOverlay />}
+      {activeOverlay === 'edit-account'  && <EditAccountOverlay key={selectedAccountId ?? 'edit-account'} />}
       {activeOverlay === 'add-position'  && <AddPositionOverlay />}
-      {activeOverlay === 'edit-position' && <EditPositionOverlay />}
+      {activeOverlay === 'edit-position' && (
+        <EditPositionOverlay key={editingPositionId ?? selectedPositionId ?? 'edit-position'} />
+      )}
       {activeOverlay === 'csv-import'    && <CsvImportOverlay />}
     </>
   );

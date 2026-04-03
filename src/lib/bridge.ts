@@ -132,9 +132,13 @@ export async function refreshPortfolioQuotes() {
   return invoke<QuoteRefreshResult>('refresh_portfolio_quotes');
 }
 
-export async function setLanProjection(enabled: boolean, exposeToLan?: boolean): Promise<LanStatus> {
+export async function setLanProjection(
+  enabled: boolean,
+  exposeToLan?: boolean,
+  viewerPassphrase?: string,
+): Promise<LanStatus> {
   assertTauri();
-  return invoke('set_lan_projection', { enabled, exposeToLan });
+  return invoke('set_lan_projection', { enabled, exposeToLan, viewerPassphrase });
 }
 
 export async function resetDatabase(): Promise<void> {

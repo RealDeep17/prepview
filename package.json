@@ -4,11 +4,11 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0 --port 1420",
+    "dev": "vite --strictPort --host 0.0.0.0 --port 1420",
     "build": "tsc -b && vite build",
     "check": "npm run test && npm run build && cargo test --manifest-path src-tauri/Cargo.toml",
     "lint": "eslint .",
-    "preview": "vite preview --host 0.0.0.0 --port 4173",
+    "preview": "vite preview --strictPort --host 0.0.0.0 --port 4173",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "test": "vitest run",
@@ -33,7 +33,10 @@
     "globals": "^17.4.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.57.0",
-    "vite": "^8.0.1"
+    "vite": "^8.0.1",
+    "vitest": "^4.1.2"
   },
-  "description": "PrepView — local-first perpetuals portfolio tracker"
+  "description": "PrepView is a local-first desktop portfolio app for derivatives traders.",
+  "author": "RealDeep17",
+  "license": "MIT"
 }
