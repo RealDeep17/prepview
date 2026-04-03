@@ -1,3 +1,5 @@
+#![allow(dependency_on_unit_never_type_fallback)]
+
 mod commands;
 mod connectors;
 mod credentials;
