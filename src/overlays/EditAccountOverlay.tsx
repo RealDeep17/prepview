@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useAppStore } from '../store/appStore';
 import { updateAccount, deleteAccount } from '../lib/bridge';
+import { useToast } from '../shell/Toast';
 
 export function EditAccountOverlay() {
   const closeOverlay = useAppStore((s) => s.closeOverlay);
@@ -8,6 +9,7 @@ export function EditAccountOverlay() {
   const bootstrap = useAppStore((s) => s.bootstrap);
   const selectedAccountId = useAppStore((s) => s.selectedAccountId);
   const setSelectedAccountId = useAppStore((s) => s.setSelectedAccountId);
+  const { toast } = useToast();
 
   const account = bootstrap?.accounts.find((a) => a.id === selectedAccountId) ?? null;
 
@@ -50,6 +52,7 @@ export function EditAccountOverlay() {
         bonusFundingDeductionRate: bonusFundingRate ? parseFloat(bonusFundingRate) / 100 : 0,
       });
       await fetchBootstrap();
+      toast('Account updated', 'success');
       closeOverlay();
     } catch (e) {
       setError(String(e));
@@ -65,6 +68,7 @@ export function EditAccountOverlay() {
       await deleteAccount(account.id);
       setSelectedAccountId(null);
       await fetchBootstrap();
+      toast(`Deleted "${account.name}"`, 'info');
       closeOverlay();
     } catch (e) {
       setError(String(e));

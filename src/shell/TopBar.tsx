@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useAppStore } from '../store/appStore';
 import { syncAllLiveAccounts, refreshPortfolioQuotes } from '../lib/bridge';
 import type { ExchangeKind } from '../lib/types';
 
-const ZOOM_LEVELS = [0.75, 0.85, 1] as const;
+const ZOOM_LEVELS = [0.75, 0.85, 1, 1.25, 1.5, 2] as const;
 
 export function TopBar() {
   const bootstrap = useAppStore((s) => s.bootstrap);
@@ -13,6 +13,8 @@ export function TopBar() {
   const fetchBootstrap = useAppStore((s) => s.fetchBootstrap);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [zoom, setZoom] = useState(1);
+  const [zoomOpen, setZoomOpen] = useState(false);
+  const zoomRef = useRef<HTMLDivElement>(null);
 
   const sync = bootstrap?.syncHealthSummary;
   const autoSync = bootstrap?.autoSyncStatus;
@@ -28,8 +30,19 @@ export function TopBar() {
     return () => clearInterval(id);
   }, [autoSync?.nextScheduledAt]);
 
+  // Close zoom dropdown on outside click
+  useEffect(() => {
+    if (!zoomOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (zoomRef.current && !zoomRef.current.contains(e.target as Node)) setZoomOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [zoomOpen]);
+
   const handleZoom = useCallback((level: number) => {
     setZoom(level);
+    setZoomOpen(false);
     document.documentElement.style.setProperty('--app-zoom', String(level));
   }, []);
 
@@ -77,16 +90,30 @@ export function TopBar() {
       </div>
       <span className="topbar-spacer" />
 
-      <div className="zoom-toggle">
-        {ZOOM_LEVELS.map((level) => (
-          <button
-            key={level}
-            className={`zoom-opt${zoom === level ? ' zoom-opt--active' : ''}`}
-            onClick={() => handleZoom(level)}
-          >
-            {Math.round(level * 100)}%
-          </button>
-        ))}
+      {/* Zoom dropdown */}
+      <div className="zoom-dropdown" ref={zoomRef}>
+        <button
+          className="btn btn--ghost btn--small zoom-trigger"
+          onClick={() => setZoomOpen(!zoomOpen)}
+          title="UI Scale"
+        >
+          {Math.round(zoom * 100)}%
+        </button>
+        {zoomOpen && (
+          <div className="zoom-popover">
+            <div className="zoom-popover-label">UI Scale</div>
+            {ZOOM_LEVELS.map((level) => (
+              <button
+                key={level}
+                className={`zoom-popover-item${zoom === level ? ' zoom-popover-item--active' : ''}`}
+                onClick={() => handleZoom(level)}
+              >
+                {Math.round(level * 100)}%
+                {level === 1 && <span className="zoom-default-badge">default</span>}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="sync-badge" onClick={handleSyncAll} style={{ cursor: 'pointer' }} title="Click to sync all">

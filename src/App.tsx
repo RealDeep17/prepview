@@ -3,11 +3,13 @@ import { listen } from '@tauri-apps/api/event';
 import { useAppStore } from './store/appStore';
 import { WorkstationShell } from './shell/WorkstationShell';
 import { ContextMenuProvider } from './shell/ContextMenu';
+import { ToastProvider } from './shell/Toast';
 
 export default function App() {
   const fetchBootstrap = useAppStore((s) => s.fetchBootstrap);
   const loading = useAppStore((s) => s.loading);
   const error = useAppStore((s) => s.error);
+  const closeOverlay = useAppStore((s) => s.closeOverlay);
 
   useEffect(() => {
     fetchBootstrap();
@@ -18,6 +20,15 @@ export default function App() {
       unlisten.then((fn) => fn());
     };
   }, [fetchBootstrap]);
+
+  // Global Escape key to close overlays
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeOverlay();
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [closeOverlay]);
 
   if (loading) {
     return <div className="loading-screen">Loading Cassini…</div>;
@@ -36,8 +47,10 @@ export default function App() {
   }
 
   return (
-    <ContextMenuProvider>
-      <WorkstationShell />
-    </ContextMenuProvider>
+    <ToastProvider>
+      <ContextMenuProvider>
+        <WorkstationShell />
+      </ContextMenuProvider>
+    </ToastProvider>
   );
 }

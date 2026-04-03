@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { useAppStore, scopedPositions } from '../store/appStore';
 import { useContextMenu } from '../shell/ContextMenu';
+import { useToast } from '../shell/Toast';
 import { fmtCurrency, fmtPnl, fmtPnlClass, fmtNumber } from '../lib/fmt';
 import { deleteManualPosition, syncLiveAccount } from '../lib/bridge';
 
@@ -11,6 +13,20 @@ export function PositionsPane() {
   const fetchBootstrap = useAppStore((s) => s.fetchBootstrap);
   const positions = scopedPositions(state);
   const { show: showCtx } = useContextMenu();
+  const { toast } = useToast();
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  const handleDelete = async (posId: string, posSymbol: string) => {
+    try {
+      await deleteManualPosition(posId);
+      setSelectedPositionId(null);
+      setConfirmDeleteId(null);
+      await fetchBootstrap();
+      toast(`Deleted ${posSymbol}`, 'info');
+    } catch (e) {
+      toast(`Failed: ${e}`, 'error');
+    }
+  };
 
   const handleContextMenu = (e: React.MouseEvent, posId: string, posSymbol: string, posExchange: string, posAccountId: string) => {
     e.preventDefault();
@@ -24,17 +40,17 @@ export function PositionsPane() {
       items.push(
         { label: 'Edit Position', action: () => openOverlay('edit-position', posId) },
         { label: 'Close Position', action: () => openOverlay('edit-position', posId) },
-        { label: 'Delete Position', action: async () => {
-          if (confirm(`Delete position ${posSymbol}?`)) {
-            await deleteManualPosition(posId);
-            setSelectedPositionId(null);
-            await fetchBootstrap();
-          }
-        }, danger: true },
+        { label: 'Delete Position', action: () => setConfirmDeleteId(posId), danger: true },
       );
     } else {
       items.push(
-        { label: 'Sync Account', action: async () => { await syncLiveAccount(posAccountId); await fetchBootstrap(); } },
+        { label: 'Sync Account', action: async () => {
+          try {
+            await syncLiveAccount(posAccountId);
+            await fetchBootstrap();
+            toast('Sync complete', 'success');
+          } catch (e) { toast(`Sync failed: ${e}`, 'error'); }
+        }},
       );
     }
 
@@ -120,6 +136,22 @@ export function PositionsPane() {
           );
         })}
       </tbody>
+      {confirmDeleteId && (
+        <tfoot>
+          <tr>
+            <td colSpan={14}>
+              <div className="inline-confirm">
+                <span>Delete position "{positions.find((p) => p.id === confirmDeleteId)?.symbol}"?</span>
+                <button className="btn btn--danger btn--small" onClick={() => {
+                  const pos = positions.find((p) => p.id === confirmDeleteId);
+                  if (pos) handleDelete(pos.id, pos.symbol);
+                }}>Confirm</button>
+                <button className="btn btn--ghost btn--small" onClick={() => setConfirmDeleteId(null)}>Cancel</button>
+              </div>
+            </td>
+          </tr>
+        </tfoot>
+      )}
     </table>
   );
 }
