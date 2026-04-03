@@ -1036,3 +1036,72 @@ body {
 .symbol-ac-item:hover, .symbol-ac-item--highlight { background: var(--bg-hover); }
 .symbol-ac-item .mark { font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); }
 .symbol-ac-empty { padding: 10px; font-size: 11px; color: var(--text-muted); text-align: center; }
+
+/* ============================================================
+   MOBILE RESPONSIVENESS (Responsive Breakpoints)
+   ============================================================ */
+@media (max-width: 900px) {
+  .shell-body {
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .shell-left-rail, .shell-right-rail {
+    width: 100% !important;
+    min-height: min-content;
+    height: auto !important;
+    border-right: none;
+    border-left: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .shell-left-rail.collapsed, .shell-right-rail.collapsed {
+    height: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    border-bottom: none;
+    border-right: none;
+    border-left: none;
+    margin: 0;
+  }
+
+  .shell-center {
+    flex: none; /* Do not expand to fill remaining space natively */
+    min-height: 70vh; /* Make sure center still has space on mobile */
+    overflow: visible;
+  }
+  
+  .table-wrap {
+    overflow: visible; /* Let the container scroll handle it */
+  }
+
+  /* Optimize modal overlay widths for mobile screens */
+  .overlay-drawer {
+    width: 100%;
+    right: 0;
+    left: 0;
+    max-height: 100vh;
+    border-left: none;
+  }
+
+  .summary-strip {
+    height: auto;
+    flex-wrap: wrap;
+  }
+  
+  .summary-item {
+    min-width: 50%;
+    padding: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .topbar-logo {
+    font-size: 13px; /* Slightly smaller logo for mobile */
+  }
+
+  .scope-pill {
+    padding: 4px 6px;
+    font-size: 10px;
+  }
+}
