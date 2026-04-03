@@ -1,44 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <defs>
-    <!-- Rich Dark Background Gradient -->
-    <linearGradient id="bg" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#0E0A1A" />
-      <stop offset="50%" stop-color="#120D23" />
-      <stop offset="100%" stop-color="#1C182F" />
-    </linearGradient>
-
-    <!-- Vibrant Purple-Cyan Gradient for Foreground -->
-    <linearGradient id="solidGlow" x1="0%" y1="100%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#7E14FF" />
-      <stop offset="100%" stop-color="#47BFFF" />
-    </linearGradient>
-    
-    <linearGradient id="accent" x1="100%" y1="100%" x2="0%" y2="0%">
-      <stop offset="0%" stop-color="#AA3BFF" />
-      <stop offset="100%" stop-color="#36D1DC" />
-    </linearGradient>
-  </defs>
-
-  <!-- Base App Square -->
-  <rect width="1024" height="1024" rx="230" fill="url(#bg)" />
+  <!-- Deep Solid Space Background, no gradients -->
+  <rect width="1024" height="1024" rx="224" fill="#0E0B16" />
   
-  <!-- Subtle inner border overlay (pseudo glassmorphism) -->
-  <rect width="1008" height="1008" x="8" y="8" rx="230" fill="none" stroke="#FFFFFF" stroke-opacity="0.06" stroke-width="6" />
+  <!-- Solid Geometric Three-Bar Graph -->
+  <!-- Left Bar: Short, Solid Blue -->
+  <rect x="220" y="580" width="120" height="200" rx="30" fill="#3B82F6" />
   
-  <!-- Geometric 'PV' / Analytics Mark -->
-  <g transform="translate(196, 230)">
-    <!-- Ascending analytic bar 1 -->
-    <path d="M 120 440 L 120 540 C 120 560 140 580 160 580 C 180 580 200 560 200 540 L 200 440 Z" fill="url(#solidGlow)" />
-    <!-- Ascending analytic bar 2 -->
-    <path d="M 270 290 L 270 540 C 270 560 290 580 310 580 C 330 580 350 560 350 540 L 350 290 Z" fill="url(#solidGlow)" />
-    <!-- Ascending analytic bar 3 -->
-    <path d="M 420 140 L 420 540 C 420 560 440 580 460 580 C 480 580 500 560 500 540 L 500 140 Z" fill="url(#solidGlow)" />
-    
-    <!-- Horizon Crossbar swooping down and connecting -->
-    <path d="M 80 440 L 200 440 L 350 290 L 500 140" fill="none" stroke="url(#accent)" stroke-width="45" stroke-linecap="round" stroke-linejoin="round" />
-    
-    <!-- Active terminal node -->
-    <circle cx="500" cy="140" r="45" fill="#47BFFF" />
-    <circle cx="500" cy="140" r="22.5" fill="#FFFFFF" />
-  </g>
+  <!-- Middle Bar: Medium, Solid Purple -->
+  <rect x="452" y="420" width="120" height="360" rx="30" fill="#A855F7" />
+  
+  <!-- Right Bar: Tall, Solid Pink/Rose -->
+  <rect x="684" y="240" width="120" height="540" rx="30" fill="#F43F5E" />
 </svg>
