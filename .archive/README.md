@@ -1,12 +1,8 @@
 # Archive
 
-This directory holds material that is intentionally kept out of the publishable app surface.
+This directory is intentionally minimal.
 
-- `docs/`: planning, doctrine, evaluation, and internal audit notes
-- `mockups/`: exploratory HTML mockups
-- `references/`: legacy and external reference snapshots
-- `design/`: non-runtime design source files and unused starter assets
-- `internal/`: repo-local workflow files not needed for publication
-- `scratch/`: one-off scripts and test artifacts used during investigation
+It exists only as a placeholder to note that historical planning and scratch material
+was removed from the public repository surface during release cleanup.
 
-Nothing in this directory is required to build or run PrepView.
+Nothing in this directory is required to build, run, or publish PrepView.

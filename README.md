@@ -61,4 +61,4 @@ npm run check
 
 ## Archive
 
-Historical research, internal planning notes, mockups, and one-off investigation material live in [`.archive/`](.archive/README.md). They are intentionally kept out of the runtime and release surface.
+The public archive surface is intentionally reduced to a minimal placeholder at [`.archive/`](.archive/README.md). Historical planning and scratch material were removed during release cleanup.
