@@ -38,15 +38,45 @@ pub fn enrich_accounts(
 
             let mut next = account.clone();
             if account.account_mode == AccountMode::Live {
-                next.snapshot_equity = account.snapshot_equity;
-                next.available_balance = account.available_balance;
+                next.snapshot_equity = account.snapshot_equity + account.bonus_balance;
+                next.available_balance = account.available_balance + account.bonus_balance;
             } else {
-                next.snapshot_equity = account.wallet_balance + unrealized;
-                next.available_balance = (account.wallet_balance - margin_used).max(0.0);
+                next.snapshot_equity = account.wallet_balance + account.bonus_balance + unrealized;
+                next.available_balance =
+                    (account.wallet_balance + account.bonus_balance - margin_used).max(0.0);
             }
             next
         })
         .collect()
+}
+
+/// Computes how much of an account's costs are offset by its bonus balance.
+/// Returns a positive number representing the dollar amount of offset.
+pub fn compute_account_bonus_offset(
+    account: &ExchangeAccount,
+    account_positions: &[PortfolioPosition],
+) -> f64 {
+    if account.bonus_balance <= 0.0 {
+        return 0.0;
+    }
+
+    let mut total_fee = 0.0;
+    let mut total_loss = 0.0;
+    let mut total_funding = 0.0;
+
+    for position in account_positions {
+        total_fee += position.fee_paid.abs();
+        total_funding += position.funding_paid.abs();
+        if position.unrealized_pnl < 0.0 {
+            total_loss += position.unrealized_pnl.abs();
+        }
+    }
+
+    let fee_offset = total_fee * account.bonus_fee_deduction_rate;
+    let loss_offset = total_loss * account.bonus_loss_deduction_rate;
+    let funding_offset = total_funding * account.bonus_funding_deduction_rate;
+
+    (fee_offset + loss_offset + funding_offset).min(account.bonus_balance)
 }
 
 #[allow(dead_code)]
@@ -78,11 +108,23 @@ pub fn summarize_with_notionals(
         .enumerate()
         .map(|(index, position)| notionals.get(index).copied().unwrap_or_else(|| fallback_notional(position)))
         .sum::<f64>();
+    let total_bonus_offset = accounts
+        .iter()
+        .map(|account| {
+            let account_positions = positions
+                .iter()
+                .filter(|position| position.account_id == account.id)
+                .cloned()
+                .collect::<Vec<_>>();
+            compute_account_bonus_offset(account, &account_positions)
+        })
+        .sum::<f64>();
     let margin_used = positions.iter().map(effective_margin_used).sum::<f64>();
 
     PortfolioSummary {
         total_equity,
         total_unrealized_pnl,
+        total_bonus_offset,
         gross_notional,
         portfolio_heat_percent: if total_equity > 0.0 {
             (margin_used / total_equity) * 100.0
@@ -142,7 +184,10 @@ pub fn exposure_with_notionals(
     grouped.into_values().collect()
 }
 
-pub fn performance(positions: &[PortfolioPosition]) -> PerformanceMetrics {
+pub fn performance(
+    accounts: &[ExchangeAccount],
+    positions: &[PortfolioPosition],
+) -> PerformanceMetrics {
     let mut realized = 0.0;
     let mut unrealized = 0.0;
     let mut fee_drag = 0.0;
@@ -165,9 +210,22 @@ pub fn performance(positions: &[PortfolioPosition]) -> PerformanceMetrics {
         total_hold_hours += (Utc::now() - position.opened_at).num_minutes() as f64 / 60.0;
     }
 
+    let total_bonus_offset = accounts
+        .iter()
+        .map(|account| {
+            let account_positions = positions
+                .iter()
+                .filter(|position| position.account_id == account.id)
+                .cloned()
+                .collect::<Vec<_>>();
+            compute_account_bonus_offset(account, &account_positions)
+        })
+        .sum::<f64>();
+
     PerformanceMetrics {
         realized_pnl: realized,
         unrealized_pnl: unrealized,
+        total_bonus_offset,
         closed_positions,
         win_rate: if closed_positions > 0 {
             (wins as f64 / closed_positions as f64) * 100.0
@@ -501,6 +559,10 @@ mod tests {
             sync_error: None,
             created_at: Utc::now(),
             last_synced_at: None,
+            bonus_balance: 0.0,
+            bonus_fee_deduction_rate: 0.0,
+            bonus_loss_deduction_rate: 0.0,
+            bonus_funding_deduction_rate: 0.0,
         }];
         let positions = vec![PortfolioPosition {
             id: "p".into(),
@@ -553,6 +615,10 @@ mod tests {
             sync_error: None,
             created_at: Utc::now(),
             last_synced_at: None,
+            bonus_balance: 0.0,
+            bonus_fee_deduction_rate: 0.0,
+            bonus_loss_deduction_rate: 0.0,
+            bonus_funding_deduction_rate: 0.0,
         }];
         let positions = vec![PortfolioPosition {
             id: "p".into(),
@@ -612,6 +678,10 @@ mod tests {
                 sync_error: None,
                 created_at: now,
                 last_synced_at: Some(now - Duration::minutes(5)),
+                bonus_balance: 0.0,
+                bonus_fee_deduction_rate: 0.0,
+                bonus_loss_deduction_rate: 0.0,
+                bonus_funding_deduction_rate: 0.0,
             },
             ExchangeAccount {
                 id: "live-stale".into(),
@@ -628,6 +698,10 @@ mod tests {
                 sync_error: None,
                 created_at: now,
                 last_synced_at: Some(now - Duration::minutes(30)),
+                bonus_balance: 0.0,
+                bonus_fee_deduction_rate: 0.0,
+                bonus_loss_deduction_rate: 0.0,
+                bonus_funding_deduction_rate: 0.0,
             },
             ExchangeAccount {
                 id: "live-error".into(),
@@ -644,6 +718,10 @@ mod tests {
                 sync_error: Some("bad auth".into()),
                 created_at: now,
                 last_synced_at: Some(now - Duration::minutes(10)),
+                bonus_balance: 0.0,
+                bonus_fee_deduction_rate: 0.0,
+                bonus_loss_deduction_rate: 0.0,
+                bonus_funding_deduction_rate: 0.0,
             },
         ];
         let jobs = vec![

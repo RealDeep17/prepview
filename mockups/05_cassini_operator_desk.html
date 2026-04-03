@@ -1,0 +1,4083 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cassini Operator Desk Mockup</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg-app: #06090e;
+        --bg-shell: #0a0e14;
+        --bg-panel: #0f141d;
+        --bg-panel-2: #121925;
+        --bg-panel-3: #151e2d;
+        --bg-row: #0f1520;
+        --bg-row-hover: #142033;
+        --bg-row-active: #18253b;
+        --border: rgba(140, 158, 190, 0.16);
+        --border-strong: rgba(140, 158, 190, 0.28);
+        --text: #eef4ff;
+        --text-2: #ccd6e8;
+        --text-3: #95a3bb;
+        --text-4: #6d7a93;
+        --blue: #71a5ff;
+        --blue-soft: rgba(113, 165, 255, 0.14);
+        --green: #49c788;
+        --green-soft: rgba(73, 199, 136, 0.14);
+        --red: #f06c76;
+        --red-soft: rgba(240, 108, 118, 0.14);
+        --amber: #e1ad5b;
+        --amber-soft: rgba(225, 173, 91, 0.14);
+        --mono: "IBM Plex Mono", "SFMono-Regular", ui-monospace, monospace;
+        --sans: "SF Pro Display", "IBM Plex Sans", "Segoe UI", sans-serif;
+        --topbar-h: 40px;
+        --left-rail-w: 280px;
+        --right-rail-w: 360px;
+        --overlay-w: 560px;
+        --radius: 4px;
+        --radius-2: 6px;
+        --shadow-shell: 0 22px 60px rgba(0, 0, 0, 0.46);
+        --shadow-overlay: 0 18px 40px rgba(0, 0, 0, 0.42);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        min-height: 100%;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: var(--bg-app);
+        color: var(--text);
+        font-family: var(--sans);
+      }
+
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+      }
+
+      button {
+        border: 0;
+        background: none;
+        color: inherit;
+        cursor: pointer;
+      }
+
+      .mockup-page {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        padding: 18px;
+      }
+
+      .mockup-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        min-height: 44px;
+        padding: 10px 14px;
+        border: 1px solid var(--border);
+        background: #0c1118;
+        border-radius: var(--radius-2);
+      }
+
+      .mockup-toolbar-copy {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+
+      .mockup-toolbar-copy strong {
+        font-size: 13px;
+        letter-spacing: 0.04em;
+      }
+
+      .mockup-toolbar-copy span {
+        color: var(--text-4);
+        font-size: 11px;
+      }
+
+      .mockup-toolbar-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .state-chip {
+        min-height: 28px;
+        padding: 0 10px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: #0a0f16;
+        color: var(--text-3);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      .state-chip.active {
+        color: var(--text);
+        border-color: rgba(113, 165, 255, 0.4);
+        background: rgba(113, 165, 255, 0.14);
+      }
+
+      .shell {
+        min-height: calc(100vh - 94px);
+        display: grid;
+        grid-template-rows: var(--topbar-h) 1fr;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-2);
+        overflow: hidden;
+        background: var(--bg-shell);
+        box-shadow: var(--shadow-shell);
+      }
+
+      .topbar {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+        gap: 12px;
+        min-height: var(--topbar-h);
+        padding: 0 12px;
+        border-bottom: 1px solid var(--border);
+        background: #0b1016;
+      }
+
+      .topbar-block {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+      }
+
+      .topbar-block.center {
+        justify-content: center;
+      }
+
+      .topbar-block.right {
+        justify-content: flex-end;
+      }
+
+      .brand-mark {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+      }
+
+      .brand-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: var(--blue);
+      }
+
+      .brand-copy {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+      }
+
+      .brand-name {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+
+      .workspace-name {
+        color: var(--text-3);
+        font-size: 11px;
+        white-space: nowrap;
+      }
+
+      .scope-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 24px;
+        padding: 0 9px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: #0d141e;
+        color: var(--text-2);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .scope-pill .scope-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 999px;
+        background: var(--blue);
+      }
+
+      .status-strip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+      }
+
+      .status-cell {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 24px;
+        padding: 0 8px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: #0c121b;
+        color: var(--text-3);
+        font-size: 10px;
+      }
+
+      .status-cell strong {
+        color: var(--text);
+        font-family: var(--mono);
+        font-size: 10px;
+      }
+
+      .status-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 999px;
+        background: var(--text-4);
+      }
+
+      .status-dot.synced {
+        background: var(--green);
+      }
+
+      .status-dot.stale {
+        background: var(--amber);
+      }
+
+      .status-dot.degraded {
+        background: var(--red);
+      }
+
+      .status-dot.local {
+        background: var(--blue);
+      }
+
+      .topbar-action {
+        min-height: 26px;
+        padding: 0 9px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: #0d141e;
+        color: var(--text-2);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .topbar-action.primary {
+        border-color: rgba(113, 165, 255, 0.42);
+        color: #d9e7ff;
+        background: rgba(113, 165, 255, 0.14);
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-columns: var(--left-rail-w) 1fr var(--right-rail-w);
+        min-height: 0;
+      }
+
+      .scope-rail,
+      .inspector-rail {
+        min-height: 0;
+        overflow: hidden;
+        background: var(--bg-panel);
+      }
+
+      .scope-rail {
+        border-right: 1px solid var(--border);
+      }
+
+      .inspector-rail {
+        border-left: 1px solid var(--border);
+      }
+
+      .rail-scroll {
+        height: 100%;
+        overflow: auto;
+      }
+
+      .rail-section {
+        padding: 10px 10px 0;
+      }
+
+      .rail-section:last-child {
+        padding-bottom: 12px;
+      }
+
+      .rail-label {
+        margin-bottom: 8px;
+        color: var(--text-4);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .rail-search {
+        width: 100%;
+        min-height: 30px;
+        padding: 0 10px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: #0a0f16;
+        color: var(--text);
+        font-size: 11px;
+      }
+
+      .rail-search::placeholder {
+        color: var(--text-4);
+      }
+
+      .scope-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .scope-row,
+      .pinned-row {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+        align-items: center;
+        min-height: 38px;
+        padding: 7px 8px;
+        border: 1px solid transparent;
+        border-radius: var(--radius);
+        background: transparent;
+        text-align: left;
+      }
+
+      .scope-row:hover,
+      .pinned-row:hover {
+        background: rgba(255, 255, 255, 0.02);
+      }
+
+      .scope-row.active,
+      .pinned-row.active {
+        border-color: rgba(113, 165, 255, 0.38);
+        background: rgba(113, 165, 255, 0.12);
+      }
+
+      .scope-main {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+      }
+
+      .scope-icon {
+        width: 18px;
+        height: 18px;
+        border-radius: 3px;
+        border: 1px solid var(--border);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text-4);
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        flex-shrink: 0;
+      }
+
+      .scope-copy {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .scope-title {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-width: 0;
+      }
+
+      .scope-title strong,
+      .pinned-row strong {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 11px;
+        font-weight: 600;
+      }
+
+      .scope-sub {
+        color: var(--text-4);
+        font-size: 10px;
+      }
+
+      .scope-values {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 2px;
+        text-align: right;
+      }
+
+      .scope-values strong {
+        font-family: var(--mono);
+        font-size: 11px;
+      }
+
+      .scope-values span,
+      .pinned-row span {
+        color: var(--text-4);
+        font-size: 10px;
+      }
+
+      .mode-badge,
+      .exchange-badge,
+      .sync-badge,
+      .risk-badge,
+      .tone-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 18px;
+        padding: 0 6px;
+        border-radius: 3px;
+        border: 1px solid var(--border);
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+
+      .exchange-badge {
+        color: var(--text-3);
+      }
+
+      .mode-live {
+        color: var(--blue);
+        border-color: rgba(113, 165, 255, 0.35);
+        background: rgba(113, 165, 255, 0.1);
+      }
+
+      .mode-manual,
+      .mode-import {
+        color: var(--amber);
+        border-color: rgba(225, 173, 91, 0.3);
+        background: rgba(225, 173, 91, 0.1);
+      }
+
+      .tone-synced {
+        color: var(--green);
+        border-color: rgba(73, 199, 136, 0.35);
+        background: rgba(73, 199, 136, 0.1);
+      }
+
+      .tone-stale {
+        color: var(--amber);
+        border-color: rgba(225, 173, 91, 0.3);
+        background: rgba(225, 173, 91, 0.1);
+      }
+
+      .tone-degraded {
+        color: var(--red);
+        border-color: rgba(240, 108, 118, 0.3);
+        background: rgba(240, 108, 118, 0.1);
+      }
+
+      .tone-local {
+        color: var(--blue);
+        border-color: rgba(113, 165, 255, 0.35);
+        background: rgba(113, 165, 255, 0.1);
+      }
+
+      .exchange-cluster {
+        margin-top: 4px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        overflow: hidden;
+      }
+
+      .exchange-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+        align-items: center;
+        min-height: 34px;
+        padding: 0 8px;
+        border-bottom: 1px solid var(--border);
+        background: #0d131c;
+      }
+
+      .exchange-row button {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        min-height: 34px;
+        padding: 0;
+        text-align: left;
+      }
+
+      .exchange-row strong {
+        font-size: 11px;
+      }
+
+      .exchange-row span {
+        color: var(--text-4);
+        font-size: 10px;
+      }
+
+      .exchange-accounts {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        padding: 4px;
+        background: #0c121b;
+      }
+
+      .subset-note {
+        color: var(--text-4);
+        font-size: 10px;
+        line-height: 1.4;
+      }
+
+      .workbench {
+        min-height: 0;
+        display: grid;
+        grid-template-rows: 38% 62%;
+        background: #090d13;
+      }
+
+      .band {
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .band + .band {
+        border-top: 1px solid var(--border);
+      }
+
+      .band-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        min-height: 34px;
+        padding: 0 10px;
+        border-bottom: 1px solid var(--border);
+        background: #0d131b;
+      }
+
+      .band-tabs {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+      }
+
+      .band-tab {
+        min-height: 24px;
+        padding: 0 8px;
+        border-radius: var(--radius);
+        color: var(--text-4);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .band-tab.active {
+        color: var(--text);
+        background: rgba(113, 165, 255, 0.12);
+      }
+
+      .band-tools {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--text-4);
+        font-size: 10px;
+      }
+
+      .band-chip,
+      .filter-chip,
+      .toggle-chip {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 22px;
+        padding: 0 8px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: #0f1621;
+        color: var(--text-3);
+        font-size: 10px;
+      }
+
+      .band-chip.active,
+      .filter-chip.active,
+      .toggle-chip.active {
+        border-color: rgba(113, 165, 255, 0.4);
+        background: rgba(113, 165, 255, 0.12);
+        color: var(--text);
+      }
+
+      .band-body {
+        min-height: 0;
+        overflow: hidden;
+        padding: 10px;
+      }
+
+      .monitor-grid {
+        height: 100%;
+        display: grid;
+        grid-template-columns: minmax(0, 1.55fr) minmax(280px, 0.85fr);
+        gap: 10px;
+      }
+
+      .panel {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--bg-panel);
+        overflow: hidden;
+      }
+
+      .panel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        min-height: 30px;
+        padding: 0 10px;
+        border-bottom: 1px solid var(--border);
+        background: #101722;
+      }
+
+      .panel-header strong {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+      }
+
+      .panel-header span {
+        color: var(--text-4);
+        font-size: 10px;
+      }
+
+      .panel-body {
+        height: calc(100% - 30px);
+        padding: 10px;
+      }
+
+      .monitor-main {
+        display: grid;
+        grid-template-rows: minmax(0, 1fr) auto;
+        gap: 10px;
+      }
+
+      .monitor-side {
+        display: grid;
+        grid-template-rows: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .chart-wrap {
+        height: 100%;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        gap: 10px;
+      }
+
+      .chart-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .chart-head strong {
+        display: block;
+        font-size: 15px;
+        font-weight: 600;
+      }
+
+      .chart-head span,
+      .mini-note {
+        color: var(--text-4);
+        font-size: 10px;
+      }
+
+      .chart-kpis {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .chart-kpis div {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+
+      .chart-kpis span {
+        color: var(--text-4);
+        font-size: 10px;
+      }
+
+      .chart-kpis strong {
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+
+      .chart-svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+        border: 1px solid rgba(255, 255, 255, 0.04);
+        background: #0b1017;
+      }
+
+      .chart-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        color: var(--text-4);
+        font-size: 10px;
+      }
+
+      .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .summary-cell,
+      .stack-cell {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: rgba(255, 255, 255, 0.02);
+        padding: 8px;
+      }
+
+      .summary-cell span,
+      .stack-cell span {
+        display: block;
+        color: var(--text-4);
+        font-size: 10px;
+      }
+
+      .summary-cell strong,
+      .stack-cell strong {
+        display: block;
+        margin-top: 4px;
+        font-family: var(--mono);
+        font-size: 13px;
+      }
+
+      .fee-strip,
+      .sync-stack,
+      .account-stack,
+      .risk-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .list-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+        align-items: center;
+        min-height: 34px;
+        padding: 6px 8px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: rgba(255, 255, 255, 0.02);
+      }
+
+      .list-row strong {
+        display: block;
+        font-size: 11px;
+      }
+
+      .list-row span {
+        color: var(--text-4);
+        font-size: 10px;
+      }
+
+      .list-row .value {
+        font-family: var(--mono);
+        font-size: 11px;
+        text-align: right;
+      }
+
+      .value.positive {
+        color: var(--green);
+      }
+
+      .value.negative {
+        color: var(--red);
+      }
+
+      .value.warning {
+        color: var(--amber);
+      }
+
+      .bars {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .bar-row {
+        display: grid;
+        grid-template-columns: 120px minmax(0, 1fr) 64px;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .bar-row strong {
+        font-size: 11px;
+      }
+
+      .bar-track {
+        position: relative;
+        height: 22px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: #0b1017;
+        overflow: hidden;
+      }
+
+      .bar-stack {
+        position: absolute;
+        inset: 0;
+        display: flex;
+      }
+
+      .bar-segment {
+        height: 100%;
+      }
+
+      .bar-label {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 8px;
+        font-size: 10px;
+        pointer-events: none;
+      }
+
+      .bar-value {
+        text-align: right;
+        font-family: var(--mono);
+        font-size: 11px;
+      }
+
+      .risk-ladder {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .risk-row {
+        display: grid;
+        grid-template-columns: 150px minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+        min-height: 36px;
+        padding: 7px 8px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: rgba(255, 255, 255, 0.02);
+      }
+
+      .risk-row-main {
+        min-width: 0;
+      }
+
+      .risk-row-main strong {
+        display: block;
+        font-size: 11px;
+      }
+
+      .risk-row-main span {
+        color: var(--text-4);
+        font-size: 10px;
+      }
+
+      .distance-track {
+        position: relative;
+        height: 8px;
+        border-radius: 999px;
+        background: #0a0f16;
+        overflow: hidden;
+      }
+
+      .distance-fill {
+        height: 100%;
+        border-radius: inherit;
+      }
+
+      .distance-meta {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 6px;
+        color: var(--text-4);
+        font-size: 10px;
+      }
+
+      .ledger-layout {
+        height: 100%;
+        display: grid;
+        grid-template-rows: auto 1fr;
+        gap: 8px;
+      }
+
+      .ledger-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .ledger-filters,
+      .ledger-meta {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+
+      .ledger-table-shell {
+        min-height: 0;
+        overflow: auto;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--bg-panel);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        height: 32px;
+        padding: 0 8px;
+        border-bottom: 1px solid var(--border);
+        background: #101722;
+        color: var(--text-4);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        text-align: left;
+        white-space: nowrap;
+      }
+
+      tbody td {
+        height: 40px;
+        padding: 0 8px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        font-size: 11px;
+        white-space: nowrap;
+      }
+
+      .compact-rows tbody td {
+        height: 36px;
+      }
+
+      tbody tr:hover {
+        background: rgba(255, 255, 255, 0.02);
+      }
+
+      tbody tr.selected {
+        background: var(--bg-row-active);
+      }
+
+      .group-row td {
+        height: 34px;
+        background: #0d131d;
+        color: var(--text-2);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .group-summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .group-summary span {
+        color: var(--text-4);
+        font-size: 10px;
+      }
+
+      .account-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .account-chip .scope-icon {
+        width: 16px;
+        height: 16px;
+        font-size: 9px;
+      }
+
+      .number {
+        font-family: var(--mono);
+      }
+
+      .side-long {
+        color: var(--green);
+      }
+
+      .side-short {
+        color: var(--red);
+      }
+
+      .ledger-empty {
+        padding: 18px;
+        color: var(--text-4);
+        font-size: 11px;
+      }
+
+      .timeline-ledger {
+        min-height: 0;
+        overflow: auto;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--bg-panel);
+      }
+
+      .timeline-row {
+        display: grid;
+        grid-template-columns: 96px 72px 160px 1fr 90px 110px;
+        gap: 10px;
+        align-items: center;
+        min-height: 36px;
+        padding: 0 10px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        font-size: 11px;
+      }
+
+      .timeline-kind {
+        display: inline-flex;
+        align-items: center;
+        min-height: 18px;
+        padding: 0 6px;
+        border-radius: 3px;
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .kind-opened {
+        color: var(--blue);
+        background: rgba(113, 165, 255, 0.12);
+      }
+
+      .kind-adjusted {
+        color: var(--amber);
+        background: rgba(225, 173, 91, 0.12);
+      }
+
+      .kind-closed {
+        color: var(--green);
+        background: rgba(73, 199, 136, 0.12);
+      }
+
+      .kind-imported {
+        color: #b692ff;
+        background: rgba(182, 146, 255, 0.14);
+      }
+
+      .inspector-head {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+        padding: 10px;
+        border-bottom: 1px solid var(--border);
+        background: #101722;
+      }
+
+      .inspector-head strong {
+        font-size: 12px;
+        letter-spacing: 0.03em;
+      }
+
+      .inspector-head span {
+        color: var(--text-4);
+        font-size: 10px;
+      }
+
+      .inspector-tabs {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        padding: 6px 8px;
+        border-bottom: 1px solid var(--border);
+        background: #0d131b;
+      }
+
+      .inspector-tab {
+        min-height: 24px;
+        padding: 0 8px;
+        border-radius: var(--radius);
+        color: var(--text-4);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .inspector-tab.active {
+        color: var(--text);
+        background: rgba(113, 165, 255, 0.12);
+      }
+
+      .inspector-scroll {
+        height: calc(100% - 89px);
+        overflow: auto;
+        padding: 10px;
+      }
+
+      .inspector-section + .inspector-section {
+        margin-top: 10px;
+      }
+
+      .inspector-title {
+        margin-bottom: 6px;
+        color: var(--text-4);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .inspector-card {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: rgba(255, 255, 255, 0.02);
+        padding: 10px;
+      }
+
+      .inspector-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .inspector-grid div,
+      .inspector-line {
+        border: 1px solid rgba(255, 255, 255, 0.04);
+        border-radius: var(--radius);
+        padding: 8px;
+        background: #0d141e;
+      }
+
+      .inspector-grid span,
+      .inspector-line span {
+        display: block;
+        color: var(--text-4);
+        font-size: 10px;
+      }
+
+      .inspector-grid strong,
+      .inspector-line strong {
+        display: block;
+        margin-top: 4px;
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+
+      .inspector-line + .inspector-line {
+        margin-top: 6px;
+      }
+
+      .action-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .action-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px;
+      }
+
+      .action-button {
+        min-height: 30px;
+        padding: 0 10px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: #0c121a;
+        color: var(--text-2);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .action-button.primary {
+        border-color: rgba(113, 165, 255, 0.4);
+        background: rgba(113, 165, 255, 0.14);
+      }
+
+      .action-button.danger {
+        border-color: rgba(240, 108, 118, 0.34);
+        color: #ffc9cf;
+        background: rgba(240, 108, 118, 0.12);
+      }
+
+      .compact-empty {
+        padding: 10px;
+        border: 1px dashed var(--border);
+        border-radius: var(--radius);
+        color: var(--text-4);
+        font-size: 11px;
+        line-height: 1.45;
+      }
+
+      .overlay-backdrop {
+        position: absolute;
+        inset: 0;
+        display: none;
+        background: rgba(2, 4, 8, 0.6);
+        z-index: 8;
+      }
+
+      .overlay-backdrop.open {
+        display: block;
+      }
+
+      .overlay-sheet {
+        position: absolute;
+        top: var(--topbar-h);
+        right: 0;
+        bottom: 0;
+        width: var(--overlay-w);
+        display: none;
+        flex-direction: column;
+        border-left: 1px solid var(--border);
+        background: #0e131c;
+        box-shadow: var(--shadow-overlay);
+        z-index: 9;
+      }
+
+      .overlay-sheet.open {
+        display: flex;
+      }
+
+      .overlay-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 14px 14px 12px;
+        border-bottom: 1px solid var(--border);
+        background: #101722;
+      }
+
+      .overlay-header strong {
+        display: block;
+        font-size: 13px;
+        letter-spacing: 0.03em;
+      }
+
+      .overlay-header span {
+        display: block;
+        margin-top: 4px;
+        color: var(--text-4);
+        font-size: 10px;
+      }
+
+      .overlay-close {
+        min-height: 26px;
+        min-width: 26px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: #0c121a;
+      }
+
+      .overlay-tabs,
+      .stepper {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 14px 0;
+      }
+
+      .overlay-tab,
+      .step-chip {
+        min-height: 24px;
+        padding: 0 8px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: #0d141d;
+        color: var(--text-4);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .overlay-tab.active,
+      .step-chip.active {
+        border-color: rgba(113, 165, 255, 0.4);
+        background: rgba(113, 165, 255, 0.12);
+        color: var(--text);
+      }
+
+      .overlay-body {
+        min-height: 0;
+        overflow: auto;
+        padding: 12px 14px 14px;
+      }
+
+      .form-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .form-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .field label {
+        color: var(--text-4);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .field input,
+      .field select,
+      .field textarea {
+        width: 100%;
+        min-height: 32px;
+        padding: 0 10px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: #0b1017;
+        color: var(--text);
+        font-size: 11px;
+      }
+
+      .field textarea {
+        min-height: 90px;
+        padding-top: 8px;
+        resize: vertical;
+      }
+
+      .picker-shell,
+      .review-card,
+      .settings-section {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: #0c121a;
+        padding: 10px;
+      }
+
+      .picker-shell strong,
+      .review-card strong,
+      .settings-section strong {
+        display: block;
+        font-size: 11px;
+      }
+
+      .picker-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-top: 8px;
+      }
+
+      .picker-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+        align-items: center;
+        min-height: 34px;
+        padding: 7px 8px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: #0f1621;
+      }
+
+      .picker-row.active {
+        border-color: rgba(113, 165, 255, 0.4);
+        background: rgba(113, 165, 255, 0.12);
+      }
+
+      .picker-row span,
+      .review-card span,
+      .settings-section span {
+        color: var(--text-4);
+        font-size: 10px;
+      }
+
+      .review-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 8px;
+      }
+
+      .review-grid div {
+        border: 1px solid rgba(255, 255, 255, 0.04);
+        border-radius: var(--radius);
+        padding: 8px;
+        background: #0f1621;
+      }
+
+      .review-grid div strong {
+        margin-top: 4px;
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+
+      .settings-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 8px;
+      }
+
+      .settings-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .settings-copy small {
+        display: block;
+        margin-top: 3px;
+        color: var(--text-4);
+        font-size: 10px;
+        line-height: 1.4;
+      }
+
+      .toggle {
+        min-height: 22px;
+        min-width: 44px;
+        padding: 2px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: #0c121a;
+      }
+
+      .toggle span {
+        display: block;
+        width: 16px;
+        height: 16px;
+        border-radius: 999px;
+        background: var(--text-4);
+        transition: transform 120ms ease;
+      }
+
+      .toggle.active {
+        border-color: rgba(113, 165, 255, 0.4);
+        background: rgba(113, 165, 255, 0.12);
+      }
+
+      .toggle.active span {
+        transform: translateX(20px);
+        background: var(--blue);
+      }
+
+      .overlay-footer {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .footer-actions {
+        display: flex;
+        gap: 8px;
+      }
+
+      .footer-button {
+        min-height: 30px;
+        padding: 0 12px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: #0d141e;
+        color: var(--text-2);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .footer-button.primary {
+        border-color: rgba(113, 165, 255, 0.42);
+        background: rgba(113, 165, 255, 0.14);
+      }
+
+      .import-results {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .rejected-table {
+        margin-top: 10px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        overflow: hidden;
+      }
+
+      .rejected-table table td,
+      .rejected-table table th {
+        height: 32px;
+      }
+
+      .chart-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .chart-tag::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: currentColor;
+      }
+
+      .footer-note {
+        color: var(--text-4);
+        font-size: 10px;
+      }
+
+      @media (max-width: 1500px) {
+        .workspace {
+          grid-template-columns: 248px 1fr 340px;
+        }
+
+        .monitor-grid {
+          grid-template-columns: 1.3fr 0.9fr;
+        }
+
+        .bar-row {
+          grid-template-columns: 96px minmax(0, 1fr) 56px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="mockup-page">
+      <div class="mockup-toolbar">
+        <div class="mockup-toolbar-copy">
+          <strong>Cassini Operator Desk Mockup</strong>
+          <span>Static workstation prototype only. No React or backend wiring.</span>
+        </div>
+        <div class="mockup-toolbar-actions" id="preset-switcher"></div>
+      </div>
+
+      <div class="shell compact-rows" id="shell">
+        <div class="topbar">
+          <div class="topbar-block" id="topbar-left"></div>
+          <div class="topbar-block center" id="topbar-center"></div>
+          <div class="topbar-block right" id="topbar-right"></div>
+        </div>
+
+        <div class="workspace">
+          <aside class="scope-rail">
+            <div class="rail-scroll" id="scope-rail"></div>
+          </aside>
+
+          <section class="workbench">
+            <div class="band">
+              <div class="band-header">
+                <div class="band-tabs" id="monitor-tabs"></div>
+                <div class="band-tools" id="monitor-tools"></div>
+              </div>
+              <div class="band-body" id="monitor-body"></div>
+            </div>
+
+            <div class="band">
+              <div class="band-header">
+                <div class="band-tabs" id="ledger-tabs"></div>
+                <div class="band-tools" id="ledger-tools"></div>
+              </div>
+              <div class="band-body" id="ledger-body"></div>
+            </div>
+          </section>
+
+          <aside class="inspector-rail">
+            <div class="inspector-head" id="inspector-head"></div>
+            <div class="inspector-tabs" id="inspector-tabs"></div>
+            <div class="inspector-scroll" id="inspector-body"></div>
+          </aside>
+        </div>
+
+        <div class="overlay-backdrop" id="overlay-backdrop"></div>
+        <div class="overlay-sheet" id="overlay-sheet"></div>
+      </div>
+    </div>
+
+    <script>
+      const DATA = {
+        workspaceName: 'Derivatives Review',
+        quoteRefreshLabel: '24s ago',
+        accounts: [
+          {
+            id: 'acc-blofin-alpha',
+            name: 'BloFin Alpha',
+            exchange: 'blofin',
+            accountMode: 'live',
+            walletBalance: 182420.11,
+            availableBalance: 72280.39,
+            snapshotEquity: 186104.58,
+            externalReference: 'BloFin Key • 4471',
+            syncTone: 'synced',
+            lastSyncedAt: '31s ago',
+            points: [174200, 175880, 177540, 178900, 180230, 181660, 182980, 184310, 186104],
+          },
+          {
+            id: 'acc-blofin-basis',
+            name: 'BloFin Basis',
+            exchange: 'blofin',
+            accountMode: 'live',
+            walletBalance: 102210.55,
+            availableBalance: 42111.74,
+            snapshotEquity: 100944.1,
+            externalReference: 'BloFin Key • 8829',
+            syncTone: 'stale',
+            lastSyncedAt: '18m ago',
+            points: [110220, 108900, 106440, 104230, 103820, 102600, 102130, 101420, 100944],
+          },
+          {
+            id: 'acc-hl-vault',
+            name: 'HL Vault',
+            exchange: 'hyperliquid',
+            accountMode: 'live',
+            walletBalance: 146882.4,
+            availableBalance: 53992.5,
+            snapshotEquity: 151480.65,
+            externalReference: '0x4f...af92',
+            syncTone: 'synced',
+            lastSyncedAt: '42s ago',
+            points: [132440, 135820, 138900, 140340, 143540, 146820, 148200, 149460, 151480],
+          },
+          {
+            id: 'acc-manual-core',
+            name: 'Manual Core',
+            exchange: 'manual',
+            accountMode: 'manual',
+            walletBalance: 58500,
+            availableBalance: 23120,
+            snapshotEquity: 60388.5,
+            externalReference: null,
+            syncTone: 'local',
+            lastSyncedAt: 'local only',
+            points: [55100, 55880, 56300, 57400, 57900, 58620, 59210, 59830, 60388],
+          },
+          {
+            id: 'acc-import-legacy',
+            name: 'Imported Legacy',
+            exchange: 'import',
+            accountMode: 'import',
+            walletBalance: 28420,
+            availableBalance: 12110,
+            snapshotEquity: 27812.43,
+            externalReference: null,
+            syncTone: 'local',
+            lastSyncedAt: 'local only',
+            points: [30210, 29940, 29420, 29110, 28810, 28540, 28210, 28040, 27812],
+          },
+        ],
+        positions: [
+          {
+            id: 'pos-bf-btc',
+            accountId: 'acc-blofin-alpha',
+            exchange: 'blofin',
+            accountMode: 'live',
+            accountName: 'BloFin Alpha',
+            symbol: 'BTC-PERP',
+            exchangeSymbol: 'BTC-USDT',
+            side: 'long',
+            marginMode: 'cross',
+            quantity: 2.4,
+            leverage: 4,
+            notional: 167184,
+            entryPrice: 68920,
+            markPrice: 69660,
+            liquidationPrice: 61240,
+            marginUsed: 41796,
+            maintenanceMargin: 4820,
+            maintenanceMarginRate: 0.004,
+            unrealizedPnl: 1776,
+            realizedPnl: 4200,
+            feePaid: 214,
+            fundingPaid: -86,
+            riskSource: 'live_exchange',
+            syncTone: 'synced',
+          },
+          {
+            id: 'pos-bf-sol',
+            accountId: 'acc-blofin-alpha',
+            exchange: 'blofin',
+            accountMode: 'live',
+            accountName: 'BloFin Alpha',
+            symbol: 'SOL-PERP',
+            exchangeSymbol: 'SOL-USDT',
+            side: 'short',
+            marginMode: 'isolated',
+            quantity: 680,
+            leverage: 6,
+            notional: 117776,
+            entryPrice: 174.8,
+            markPrice: 173.2,
+            liquidationPrice: 195.9,
+            marginUsed: 19629,
+            maintenanceMargin: 1410,
+            maintenanceMarginRate: 0.012,
+            unrealizedPnl: 1088,
+            realizedPnl: 0,
+            feePaid: 126,
+            fundingPaid: 34,
+            riskSource: 'live_exchange',
+            syncTone: 'synced',
+          },
+          {
+            id: 'pos-bf-eth',
+            accountId: 'acc-blofin-basis',
+            exchange: 'blofin',
+            accountMode: 'live',
+            accountName: 'BloFin Basis',
+            symbol: 'ETH-PERP',
+            exchangeSymbol: 'ETH-USDT',
+            side: 'long',
+            marginMode: 'cross',
+            quantity: 22,
+            leverage: 5,
+            notional: 72754,
+            entryPrice: 3230,
+            markPrice: 3307,
+            liquidationPrice: 2808,
+            marginUsed: 14550,
+            maintenanceMargin: 1268,
+            maintenanceMarginRate: 0.005,
+            unrealizedPnl: 1694,
+            realizedPnl: -820,
+            feePaid: 148,
+            fundingPaid: 61,
+            riskSource: 'live_exchange',
+            syncTone: 'stale',
+          },
+          {
+            id: 'pos-hl-btc',
+            accountId: 'acc-hl-vault',
+            exchange: 'hyperliquid',
+            accountMode: 'live',
+            accountName: 'HL Vault',
+            symbol: 'BTC-PERP',
+            exchangeSymbol: 'BTC',
+            side: 'short',
+            marginMode: 'cross',
+            quantity: 1.95,
+            leverage: 7,
+            notional: 135837,
+            entryPrice: 70140,
+            markPrice: 69660,
+            liquidationPrice: 74880,
+            marginUsed: 19405,
+            maintenanceMargin: 2148,
+            maintenanceMarginRate: 0.008,
+            unrealizedPnl: 936,
+            realizedPnl: 11280,
+            feePaid: 311,
+            fundingPaid: -142,
+            riskSource: 'live_exchange',
+            syncTone: 'synced',
+          },
+          {
+            id: 'pos-hl-doge',
+            accountId: 'acc-hl-vault',
+            exchange: 'hyperliquid',
+            accountMode: 'live',
+            accountName: 'HL Vault',
+            symbol: 'DOGE-PERP',
+            exchangeSymbol: 'DOGE',
+            side: 'long',
+            marginMode: 'isolated',
+            quantity: 420000,
+            leverage: 3,
+            notional: 81690,
+            entryPrice: 0.188,
+            markPrice: 0.1945,
+            liquidationPrice: 0.147,
+            marginUsed: 27230,
+            maintenanceMargin: 1860,
+            maintenanceMarginRate: 0.01,
+            unrealizedPnl: 2730,
+            realizedPnl: 0,
+            feePaid: 208,
+            fundingPaid: 19,
+            riskSource: 'live_exchange',
+            syncTone: 'synced',
+          },
+          {
+            id: 'pos-manual-eth',
+            accountId: 'acc-manual-core',
+            exchange: 'blofin',
+            accountMode: 'manual',
+            accountName: 'Manual Core',
+            symbol: 'ETH-PERP',
+            exchangeSymbol: 'ETH-USDT',
+            side: 'long',
+            marginMode: 'isolated',
+            quantity: 12,
+            leverage: 4,
+            notional: 39480,
+            entryPrice: 3262,
+            markPrice: 3290,
+            liquidationPrice: 2488,
+            marginUsed: 9870,
+            maintenanceMargin: 512,
+            maintenanceMarginRate: 0.004,
+            unrealizedPnl: 336,
+            realizedPnl: 560,
+            feePaid: 34,
+            fundingPaid: 12,
+            riskSource: 'local_engine',
+            syncTone: 'local',
+          },
+          {
+            id: 'pos-manual-fet',
+            accountId: 'acc-manual-core',
+            exchange: 'hyperliquid',
+            accountMode: 'manual',
+            accountName: 'Manual Core',
+            symbol: 'FET-PERP',
+            exchangeSymbol: 'FET',
+            side: 'short',
+            marginMode: 'cross',
+            quantity: 16000,
+            leverage: 5,
+            notional: 21040,
+            entryPrice: 1.38,
+            markPrice: 1.315,
+            liquidationPrice: 1.68,
+            marginUsed: 4208,
+            maintenanceMargin: 388,
+            maintenanceMarginRate: 0.015,
+            unrealizedPnl: 1040,
+            realizedPnl: -120,
+            feePaid: 28,
+            fundingPaid: 16,
+            riskSource: 'user_input',
+            syncTone: 'local',
+          },
+          {
+            id: 'pos-import-arb',
+            accountId: 'acc-import-legacy',
+            exchange: 'import',
+            accountMode: 'import',
+            accountName: 'Imported Legacy',
+            symbol: 'ARB-PERP',
+            exchangeSymbol: 'ARBUSDT',
+            side: 'long',
+            marginMode: 'isolated',
+            quantity: 18000,
+            leverage: 2,
+            notional: 14490,
+            entryPrice: 0.82,
+            markPrice: 0.805,
+            liquidationPrice: 0.61,
+            marginUsed: 7245,
+            maintenanceMargin: 210,
+            maintenanceMarginRate: 0.01,
+            unrealizedPnl: -270,
+            realizedPnl: 0,
+            feePaid: 14,
+            fundingPaid: 0,
+            riskSource: 'user_input',
+            syncTone: 'local',
+          },
+        ],
+        closedTrades: [
+          {
+            id: 'ct-1',
+            accountId: 'acc-hl-vault',
+            accountName: 'HL Vault',
+            exchange: 'hyperliquid',
+            symbol: 'ETH-PERP',
+            side: 'short',
+            quantity: 18,
+            entryPrice: 3368,
+            exitPrice: 3294,
+            realizedPnl: 1332,
+            feePaid: 48,
+            fundingPaid: -22,
+            closedAt: '2026-04-03 10:14',
+          },
+          {
+            id: 'ct-2',
+            accountId: 'acc-blofin-alpha',
+            accountName: 'BloFin Alpha',
+            exchange: 'blofin',
+            symbol: 'TIA-PERP',
+            side: 'long',
+            quantity: 4200,
+            entryPrice: 9.88,
+            exitPrice: 10.12,
+            realizedPnl: 1008,
+            feePaid: 31,
+            fundingPaid: 9,
+            closedAt: '2026-04-03 09:42',
+          },
+          {
+            id: 'ct-3',
+            accountId: 'acc-manual-core',
+            accountName: 'Manual Core',
+            exchange: 'blofin',
+            symbol: 'SOL-PERP',
+            side: 'short',
+            quantity: 220,
+            entryPrice: 180.1,
+            exitPrice: 174.2,
+            realizedPnl: 1298,
+            feePaid: 12,
+            fundingPaid: 0,
+            closedAt: '2026-04-02 22:21',
+          },
+          {
+            id: 'ct-4',
+            accountId: 'acc-import-legacy',
+            accountName: 'Imported Legacy',
+            exchange: 'import',
+            symbol: 'OP-PERP',
+            side: 'long',
+            quantity: 12400,
+            entryPrice: 3.24,
+            exitPrice: 3.12,
+            realizedPnl: -1488,
+            feePaid: 18,
+            fundingPaid: 0,
+            closedAt: '2026-04-02 17:05',
+          },
+        ],
+        journal: [
+          {
+            id: 'evt-1',
+            time: '10:56',
+            kind: 'adjusted',
+            exchange: 'hyperliquid',
+            account: 'HL Vault',
+            symbol: 'BTC-PERP',
+            detail: 'size 1.70 → 1.95 · mark repriced',
+            pnl: 936,
+            source: 'sync-2048',
+          },
+          {
+            id: 'evt-2',
+            time: '10:14',
+            kind: 'closed',
+            exchange: 'hyperliquid',
+            account: 'HL Vault',
+            symbol: 'ETH-PERP',
+            detail: 'manual reduce finalized',
+            pnl: 1332,
+            source: 'manual-close',
+          },
+          {
+            id: 'evt-3',
+            time: '09:42',
+            kind: 'closed',
+            exchange: 'blofin',
+            account: 'BloFin Alpha',
+            symbol: 'TIA-PERP',
+            detail: 'full close after sync',
+            pnl: 1008,
+            source: 'sync-2041',
+          },
+          {
+            id: 'evt-4',
+            time: '08:21',
+            kind: 'opened',
+            exchange: 'blofin',
+            account: 'Manual Core',
+            symbol: 'ETH-PERP',
+            detail: 'manual capture from BloFin market spec',
+            pnl: 336,
+            source: 'manual-position',
+          },
+          {
+            id: 'evt-5',
+            time: '07:52',
+            kind: 'imported',
+            exchange: 'import',
+            account: 'Imported Legacy',
+            symbol: 'ARB-PERP',
+            detail: 'csv row 42 accepted',
+            pnl: -270,
+            source: 'csv-import',
+          },
+        ],
+        funding: [
+          {
+            time: '11:00',
+            account: 'HL Vault',
+            exchange: 'hyperliquid',
+            symbol: 'BTC-PERP',
+            rate: '-0.0050%',
+            amount: '-142',
+          },
+          {
+            time: '11:00',
+            account: 'BloFin Alpha',
+            exchange: 'blofin',
+            symbol: 'BTC-PERP',
+            rate: '-0.0032%',
+            amount: '-86',
+          },
+          {
+            time: '11:00',
+            account: 'Manual Core',
+            exchange: 'blofin',
+            symbol: 'ETH-PERP',
+            rate: '+0.0018%',
+            amount: '+12',
+          },
+          {
+            time: '03:00',
+            account: 'BloFin Basis',
+            exchange: 'blofin',
+            symbol: 'ETH-PERP',
+            rate: '+0.0024%',
+            amount: '+61',
+          },
+        ],
+        syncJobs: [
+          {
+            id: 'sync-2048',
+            accountId: 'acc-hl-vault',
+            account: 'HL Vault',
+            exchange: 'hyperliquid',
+            startedAt: '10:55:02',
+            finishedAt: '10:55:09',
+            attempts: 1,
+            positionsSynced: 2,
+            fundingEntries: 1,
+            result: 'success',
+            error: '',
+          },
+          {
+            id: 'sync-2047',
+            accountId: 'acc-blofin-alpha',
+            account: 'BloFin Alpha',
+            exchange: 'blofin',
+            startedAt: '10:54:21',
+            finishedAt: '10:54:33',
+            attempts: 1,
+            positionsSynced: 2,
+            fundingEntries: 1,
+            result: 'success',
+            error: '',
+          },
+          {
+            id: 'sync-2046',
+            accountId: 'acc-blofin-basis',
+            account: 'BloFin Basis',
+            exchange: 'blofin',
+            startedAt: '10:35:40',
+            finishedAt: '10:36:19',
+            attempts: 2,
+            positionsSynced: 1,
+            fundingEntries: 1,
+            result: 'degraded',
+            error: 'HTTP 429 on quote refresh; using cached state',
+          },
+        ],
+        pinnedScopes: [
+          { id: 'pin-subset-core', label: 'Core Hedge Set', detail: 'HL Vault + Manual Core', kind: 'subset', accountIds: ['acc-hl-vault', 'acc-manual-core'] },
+          { id: 'pin-blofin', label: 'BloFin Cluster', detail: 'Alpha + Basis', kind: 'exchange', exchange: 'blofin' },
+        ],
+        lanStatus: {
+          enabled: true,
+          exposeToLan: false,
+          bindAddress: '127.0.0.1:46666',
+          publicUrl: 'http://127.0.0.1:46666/api/portfolio/summary?...',
+          tokenState: 'issued · hidden',
+        },
+        autoSyncStatus: {
+          enabled: true,
+          intervalSeconds: 90,
+          nextScheduledAt: '46s',
+          lastFinishedAt: '31s ago',
+          lastCycleAccounts: 3,
+          lastCycleSucceeded: 2,
+          lastCycleFailed: 1,
+        },
+        marketOptions: {
+          blofin: [
+            { exchangeSymbol: 'BTC-USDT', symbol: 'BTC-PERP', mark: 69660, maxLev: '50x' },
+            { exchangeSymbol: 'ETH-USDT', symbol: 'ETH-PERP', mark: 3307, maxLev: '75x' },
+            { exchangeSymbol: 'SOL-USDT', symbol: 'SOL-PERP', mark: 173.2, maxLev: '25x' },
+          ],
+          hyperliquid: [
+            { exchangeSymbol: 'BTC', symbol: 'BTC-PERP', mark: 69660, maxLev: '40x' },
+            { exchangeSymbol: 'ETH', symbol: 'ETH-PERP', mark: 3301, maxLev: '50x' },
+            { exchangeSymbol: 'FET', symbol: 'FET-PERP', mark: 1.315, maxLev: '10x' },
+          ],
+        },
+      };
+
+      const state = {
+        activePreset: 'overview',
+        activeMonitor: 'overview',
+        activeLedger: 'positions',
+        inspectorTab: 'account',
+        activeOverlay: null,
+        accountOverlayTab: 'live',
+        manualStep: 'contract',
+        settings: {
+          compactRows: true,
+          showAccountCurves: true,
+          showFeeBoard: true,
+          defaultHistoryGrouping: 'time',
+          historyWindow: '30d',
+        },
+        scope: { kind: 'portfolio', accountIds: [] },
+        selectedPositionId: null,
+        selectedManualMarket: 'BTC',
+      };
+
+      const PRESETS = {
+        overview: {
+          label: 'Overview State',
+          activeMonitor: 'overview',
+          activeLedger: 'positions',
+          inspectorTab: 'account',
+          activeOverlay: null,
+          selectedPositionId: null,
+          scope: { kind: 'portfolio', accountIds: [] },
+        },
+        positions: {
+          label: 'Positions State',
+          activeMonitor: 'risk',
+          activeLedger: 'positions',
+          inspectorTab: 'selection',
+          activeOverlay: null,
+          selectedPositionId: 'pos-hl-btc',
+          scope: { kind: 'exchange', exchange: 'hyperliquid', accountIds: [] },
+        },
+        manual: {
+          label: 'Manual Overlay State',
+          activeMonitor: 'overview',
+          activeLedger: 'positions',
+          inspectorTab: 'selection',
+          activeOverlay: 'manual',
+          selectedPositionId: 'pos-manual-eth',
+          scope: { kind: 'subset', accountIds: ['acc-manual-core', 'acc-hl-vault'] },
+        },
+      };
+
+      const monitorTabs = ['overview', 'exposure', 'risk', 'performance'];
+      const ledgerTabs = ['positions', 'closed', 'journal', 'funding', 'sync'];
+      const inspectorTabs = ['selection', 'account', 'sync', 'lan'];
+
+      function formatCurrency(value) {
+        return new Intl.NumberFormat('en-US', {
+          style: 'currency',
+          currency: 'USD',
+          maximumFractionDigits: value >= 100 ? 0 : 2,
+        }).format(value);
+      }
+
+      function formatSigned(value) {
+        const abs = formatCurrency(Math.abs(value));
+        if (value > 0) return `+${abs}`;
+        if (value < 0) return `-${abs}`;
+        return abs;
+      }
+
+      function formatCompact(value) {
+        return new Intl.NumberFormat('en-US', {
+          notation: 'compact',
+          maximumFractionDigits: 1,
+        }).format(value);
+      }
+
+      function formatQty(value) {
+        return new Intl.NumberFormat('en-US', {
+          maximumFractionDigits: value >= 1000 ? 0 : 2,
+        }).format(value);
+      }
+
+      function titleCase(value) {
+        return value
+          .split(/[_-]/g)
+          .map((token) => token.charAt(0).toUpperCase() + token.slice(1))
+          .join(' ');
+      }
+
+      function toneClass(value) {
+        if (value === 'synced') return 'tone-synced';
+        if (value === 'stale') return 'tone-stale';
+        if (value === 'degraded') return 'tone-degraded';
+        return 'tone-local';
+      }
+
+      function sideClass(side) {
+        return side === 'long' ? 'side-long' : 'side-short';
+      }
+
+      function getScopedAccounts() {
+        if (state.scope.kind === 'portfolio') return DATA.accounts;
+        if (state.scope.kind === 'exchange') {
+          return DATA.accounts.filter((account) => account.exchange === state.scope.exchange);
+        }
+        if (state.scope.kind === 'account') {
+          return DATA.accounts.filter((account) => account.id === state.scope.accountId);
+        }
+        if (state.scope.kind === 'subset') {
+          return DATA.accounts.filter((account) => state.scope.accountIds.includes(account.id));
+        }
+        return DATA.accounts;
+      }
+
+      function getScopedPositions() {
+        const ids = new Set(getScopedAccounts().map((account) => account.id));
+        return DATA.positions.filter((position) => ids.has(position.accountId));
+      }
+
+      function getScopedClosedTrades() {
+        const ids = new Set(getScopedAccounts().map((account) => account.id));
+        return DATA.closedTrades.filter((trade) => ids.has(trade.accountId));
+      }
+
+      function getScopedFunding() {
+        const names = new Set(getScopedAccounts().map((account) => account.name));
+        return DATA.funding.filter((row) => names.has(row.account));
+      }
+
+      function getScopedSyncJobs() {
+        const ids = new Set(getScopedAccounts().map((account) => account.id));
+        return DATA.syncJobs.filter((job) => ids.has(job.accountId));
+      }
+
+      function getSelectedPosition() {
+        return DATA.positions.find((position) => position.id === state.selectedPositionId) || null;
+      }
+
+      function getScopeLabel() {
+        if (state.scope.kind === 'portfolio') return 'All Portfolio';
+        if (state.scope.kind === 'exchange') return titleCase(state.scope.exchange);
+        if (state.scope.kind === 'account') {
+          const account = DATA.accounts.find((item) => item.id === state.scope.accountId);
+          return account ? account.name : 'Account';
+        }
+        if (state.scope.kind === 'subset') {
+          return `${state.scope.accountIds.length} Account Subset`;
+        }
+        return 'All Portfolio';
+      }
+
+      function getScopeSummary() {
+        const accounts = getScopedAccounts();
+        const positions = getScopedPositions();
+        const totalEquity = accounts.reduce((sum, account) => sum + account.snapshotEquity, 0);
+        const wallet = accounts.reduce((sum, account) => sum + account.walletBalance, 0);
+        const available = accounts.reduce((sum, account) => sum + account.availableBalance, 0);
+        const usedMargin = positions.reduce((sum, row) => sum + row.marginUsed, 0);
+        const feeBurn = positions.reduce((sum, row) => sum + row.feePaid, 0);
+        const fundingBurn = positions.reduce((sum, row) => sum + row.fundingPaid, 0);
+        const totalUnrealized = positions.reduce((sum, row) => sum + row.unrealizedPnl, 0);
+        return {
+          totalEquity,
+          wallet,
+          available,
+          usedMargin,
+          feeBurn,
+          fundingBurn,
+          totalUnrealized,
+          accounts: accounts.length,
+          positions: positions.length,
+        };
+      }
+
+      function getScopeHistory() {
+        const accounts = getScopedAccounts();
+        const maxPoints = Math.max(...accounts.map((account) => account.points.length));
+        return new Array(maxPoints).fill(0).map((_, index) =>
+          accounts.reduce((sum, account) => sum + (account.points[index] || 0), 0)
+        );
+      }
+
+      function buildPolyline(points, width, height, pad = 18) {
+        const min = Math.min(...points);
+        const max = Math.max(...points);
+        const range = max - min || 1;
+        const step = (width - pad * 2) / Math.max(points.length - 1, 1);
+        return points
+          .map((point, index) => {
+            const x = pad + index * step;
+            const y = height - pad - ((point - min) / range) * (height - pad * 2);
+            return `${x.toFixed(2)},${y.toFixed(2)}`;
+          })
+          .join(' ');
+      }
+
+      function renderPresetSwitcher() {
+        const root = document.getElementById('preset-switcher');
+        root.innerHTML = Object.entries(PRESETS)
+          .map(
+            ([key, preset]) => `
+              <button class="state-chip ${state.activePreset === key ? 'active' : ''}" data-preset="${key}">
+                ${preset.label}
+              </button>
+            `
+          )
+          .join('');
+
+        root.querySelectorAll('[data-preset]').forEach((button) => {
+          button.addEventListener('click', () => applyPreset(button.dataset.preset));
+        });
+      }
+
+      function applyPreset(key) {
+        const preset = PRESETS[key];
+        state.activePreset = key;
+        state.activeMonitor = preset.activeMonitor;
+        state.activeLedger = preset.activeLedger;
+        state.inspectorTab = preset.inspectorTab;
+        state.activeOverlay = preset.activeOverlay;
+        state.selectedPositionId = preset.selectedPositionId;
+        state.scope = JSON.parse(JSON.stringify(preset.scope));
+        if (key === 'manual') {
+          state.manualStep = 'review';
+        } else if (state.manualStep === 'review') {
+          state.manualStep = 'contract';
+        }
+        render();
+      }
+
+      function renderTopBar() {
+        const summary = getScopeSummary();
+        const accounts = getScopedAccounts();
+        const staleCount = accounts.filter((account) => account.syncTone === 'stale').length;
+        const degradedCount = accounts.filter((account) => account.syncTone === 'degraded').length;
+        const localCount = accounts.filter((account) => account.syncTone === 'local').length;
+
+        document.getElementById('topbar-left').innerHTML = `
+          <div class="brand-mark">
+            <span class="brand-dot"></span>
+            <div class="brand-copy">
+              <span class="brand-name">Cassini</span>
+              <span class="workspace-name">${DATA.workspaceName}</span>
+            </div>
+          </div>
+          <span class="scope-pill">
+            <span class="scope-dot"></span>
+            ${getScopeLabel()}
+          </span>
+        `;
+
+        document.getElementById('topbar-center').innerHTML = `
+          <div class="status-strip">
+            <span class="status-cell">
+              <span class="status-dot synced"></span>
+              <strong>${formatCompact(summary.totalEquity)}</strong>
+              scope
+            </span>
+            <span class="status-cell">
+              <span class="status-dot stale"></span>
+              <strong>${staleCount}</strong>
+              stale
+            </span>
+            <span class="status-cell">
+              <span class="status-dot degraded"></span>
+              <strong>${degradedCount}</strong>
+              degraded
+            </span>
+            <span class="status-cell">
+              <span class="status-dot local"></span>
+              <strong>${localCount}</strong>
+              local
+            </span>
+            <span class="status-cell">
+              <strong>${DATA.quoteRefreshLabel}</strong>
+              quote refresh
+            </span>
+            <span class="status-cell">
+              <strong>${DATA.lanStatus.enabled ? 'localhost' : 'off'}</strong>
+              lan
+            </span>
+          </div>
+        `;
+
+        document.getElementById('topbar-right').innerHTML = `
+          <button class="topbar-action" data-action="sync">Sync All</button>
+          <button class="topbar-action" data-action="account">Add Account</button>
+          <button class="topbar-action primary" data-action="manual">Add Position</button>
+          <button class="topbar-action" data-action="import">Import CSV</button>
+          <button class="topbar-action" data-action="settings">Settings</button>
+        `;
+
+        document.querySelectorAll('[data-action]').forEach((button) => {
+          button.addEventListener('click', () => {
+            const action = button.dataset.action;
+            if (action === 'sync') {
+              state.inspectorTab = 'sync';
+            } else if (action === 'account') {
+              state.activeOverlay = 'account';
+            } else if (action === 'manual') {
+              state.activeOverlay = 'manual';
+            } else if (action === 'import') {
+              state.activeOverlay = 'import';
+            } else if (action === 'settings') {
+              state.activeOverlay = 'settings';
+            }
+            render();
+          });
+        });
+      }
+
+      function renderScopeRail() {
+        const rail = document.getElementById('scope-rail');
+        const grouped = DATA.accounts.reduce((map, account) => {
+          map[account.exchange] = map[account.exchange] || [];
+          map[account.exchange].push(account);
+          return map;
+        }, {});
+
+        rail.innerHTML = `
+          <div class="rail-section">
+            <div class="rail-label">Scope Search</div>
+            <input class="rail-search" value="" placeholder="Find account, venue, subset" />
+          </div>
+
+          <div class="rail-section">
+            <div class="rail-label">Portfolio Root</div>
+            <div class="scope-stack">
+              <button class="scope-row ${state.scope.kind === 'portfolio' ? 'active' : ''}" data-scope-kind="portfolio">
+                <div class="scope-main">
+                  <span class="scope-icon">A</span>
+                  <div class="scope-copy">
+                    <div class="scope-title"><strong>All Portfolio</strong></div>
+                    <div class="scope-sub">${DATA.accounts.length} accounts · ${DATA.positions.length} open</div>
+                  </div>
+                </div>
+                <div class="scope-values">
+                  <strong>${formatCurrency(DATA.accounts.reduce((sum, account) => sum + account.snapshotEquity, 0))}</strong>
+                  <span>global</span>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <div class="rail-section">
+            <div class="rail-label">Exchange Groups</div>
+            ${Object.entries(grouped)
+              .map(([exchange, accounts]) => {
+                const equity = accounts.reduce((sum, account) => sum + account.snapshotEquity, 0);
+                return `
+                  <div class="exchange-cluster">
+                    <div class="exchange-row">
+                      <button data-scope-kind="exchange" data-exchange="${exchange}">
+                        <div class="scope-title">
+                          <strong>${titleCase(exchange)}</strong>
+                          <span>${accounts.length} acc</span>
+                        </div>
+                        <span>${formatCompact(equity)}</span>
+                      </button>
+                    </div>
+                    <div class="exchange-accounts">
+                      ${accounts
+                        .map((account) => {
+                          const positionCount = DATA.positions.filter((row) => row.accountId === account.id).length;
+                          const isActive =
+                            (state.scope.kind === 'account' && state.scope.accountId === account.id) ||
+                            (state.scope.kind === 'subset' && state.scope.accountIds.includes(account.id));
+                          return `
+                            <button class="scope-row ${isActive ? 'active' : ''}" data-scope-kind="account" data-account-id="${account.id}">
+                              <div class="scope-main">
+                                <span class="scope-icon">${account.name.charAt(0)}</span>
+                                <div class="scope-copy">
+                                  <div class="scope-title">
+                                    <strong>${account.name}</strong>
+                                    <span class="mode-badge ${account.accountMode === 'live' ? 'mode-live' : account.accountMode === 'manual' ? 'mode-manual' : 'mode-import'}">${account.accountMode}</span>
+                                  </div>
+                                  <div class="scope-sub">${positionCount} open · ${account.lastSyncedAt}</div>
+                                </div>
+                              </div>
+                              <div class="scope-values">
+                                <strong>${formatCurrency(account.snapshotEquity)}</strong>
+                                <span class="sync-badge ${toneClass(account.syncTone)}">${account.syncTone}</span>
+                              </div>
+                            </button>
+                          `;
+                        })
+                        .join('')}
+                    </div>
+                  </div>
+                `;
+              })
+              .join('')}
+          </div>
+
+          <div class="rail-section">
+            <div class="rail-label">Pinned Scopes</div>
+            <div class="scope-stack">
+              ${DATA.pinnedScopes
+                .map((scope) => {
+                  const isActive =
+                    scope.kind === 'exchange'
+                      ? state.scope.kind === 'exchange' && state.scope.exchange === scope.exchange
+                      : state.scope.kind === 'subset' &&
+                        JSON.stringify([...state.scope.accountIds].sort()) === JSON.stringify([...scope.accountIds].sort());
+                  return `
+                    <button class="pinned-row ${isActive ? 'active' : ''}" data-pin-id="${scope.id}">
+                      <strong>${scope.label}</strong>
+                      <span>${scope.detail}</span>
+                    </button>
+                  `;
+                })
+                .join('')}
+            </div>
+          </div>
+
+          <div class="rail-section">
+            <div class="rail-label">Interaction</div>
+            <div class="subset-note">
+              Click an account to focus it. Hold <strong>cmd/ctrl</strong> on account rows to build a subset.
+            </div>
+          </div>
+        `;
+
+        rail.querySelector('[data-scope-kind="portfolio"]').addEventListener('click', () => {
+          state.scope = { kind: 'portfolio', accountIds: [] };
+          render();
+        });
+
+        rail.querySelectorAll('[data-scope-kind="exchange"]').forEach((button) => {
+          button.addEventListener('click', () => {
+            state.scope = { kind: 'exchange', exchange: button.dataset.exchange, accountIds: [] };
+            render();
+          });
+        });
+
+        rail.querySelectorAll('[data-scope-kind="account"]').forEach((button) => {
+          button.addEventListener('click', (event) => {
+            const accountId = button.dataset.accountId;
+            if (event.metaKey || event.ctrlKey) {
+              const nextIds = new Set(state.scope.kind === 'subset' ? state.scope.accountIds : []);
+              if (nextIds.has(accountId)) nextIds.delete(accountId);
+              else nextIds.add(accountId);
+              state.scope = { kind: 'subset', accountIds: [...nextIds] };
+            } else {
+              state.scope = { kind: 'account', accountId, accountIds: [] };
+            }
+            render();
+          });
+        });
+
+        rail.querySelectorAll('[data-pin-id]').forEach((button) => {
+          button.addEventListener('click', () => {
+            const pin = DATA.pinnedScopes.find((item) => item.id === button.dataset.pinId);
+            if (!pin) return;
+            if (pin.kind === 'exchange') {
+              state.scope = { kind: 'exchange', exchange: pin.exchange, accountIds: [] };
+            } else {
+              state.scope = { kind: 'subset', accountIds: [...pin.accountIds] };
+            }
+            render();
+          });
+        });
+      }
+
+      function renderMonitorTabs() {
+        const tabs = document.getElementById('monitor-tabs');
+        tabs.innerHTML = monitorTabs
+          .map(
+            (tab) => `
+              <button class="band-tab ${state.activeMonitor === tab ? 'active' : ''}" data-monitor-tab="${tab}">
+                ${tab === 'overview' ? 'Overview' : tab === 'exposure' ? 'Exposure' : tab === 'risk' ? 'Risk' : 'Performance'}
+              </button>
+            `
+          )
+          .join('');
+        tabs.querySelectorAll('[data-monitor-tab]').forEach((button) => {
+          button.addEventListener('click', () => {
+            state.activeMonitor = button.dataset.monitorTab;
+            renderMonitorBody();
+            renderMonitorTabs();
+          });
+        });
+
+        document.getElementById('monitor-tools').innerHTML = `
+          <button class="band-chip active">1D</button>
+          <button class="band-chip">1W</button>
+          <button class="band-chip">1M</button>
+          <button class="band-chip">3M</button>
+          <span class="mini-note">portfolio-first monitor</span>
+        `;
+      }
+
+      function renderMonitorBody() {
+        const body = document.getElementById('monitor-body');
+        if (state.activeMonitor === 'overview') {
+          body.innerHTML = renderOverviewMonitor();
+        } else if (state.activeMonitor === 'exposure') {
+          body.innerHTML = renderExposureMonitor();
+        } else if (state.activeMonitor === 'risk') {
+          body.innerHTML = renderRiskMonitor();
+        } else {
+          body.innerHTML = renderPerformanceMonitor();
+        }
+      }
+
+      function renderOverviewMonitor() {
+        const accounts = getScopedAccounts();
+        const summary = getScopeSummary();
+        const history = getScopeHistory();
+        const equityPoints = buildPolyline(history, 760, 240, 20);
+        const accountLines = state.settings.showAccountCurves
+          ? accounts
+              .map((account, index) => {
+                const colors = ['#37598b', '#344772', '#2e5e52', '#5f4d24', '#5a3050'];
+                return `<polyline fill="none" stroke="${colors[index % colors.length]}" stroke-width="1.25" points="${buildPolyline(account.points, 760, 240, 20)}"></polyline>`;
+              })
+              .join('')
+          : '';
+
+        const syncStates = accounts.reduce(
+          (map, account) => {
+            map[account.syncTone] = (map[account.syncTone] || 0) + 1;
+            return map;
+          },
+          { synced: 0, stale: 0, degraded: 0, local: 0 }
+        );
+
+        const ranked = [...accounts].sort((left, right) => right.snapshotEquity - left.snapshotEquity);
+        const feeRows = [
+          ['Trade fees', summary.feeBurn],
+          ['Funding drag', summary.fundingBurn],
+          ['Open unrealized', summary.totalUnrealized],
+        ];
+
+        return `
+          <div class="monitor-grid">
+            <div class="monitor-main">
+              <div class="panel">
+                <div class="panel-header">
+                  <strong>Portfolio Equity</strong>
+                  <span>${getScopeLabel()} · ${formatCurrency(summary.totalEquity)}</span>
+                </div>
+                <div class="panel-body">
+                  <div class="chart-wrap">
+                    <div class="chart-head">
+                      <div>
+                        <strong>${formatCurrency(summary.totalEquity)}</strong>
+                        <span>Equity · ${summary.accounts} accounts · ${summary.positions} open positions</span>
+                      </div>
+                      <div class="chart-kpis">
+                        <div><span>Available</span><strong>${formatCurrency(summary.available)}</strong></div>
+                        <div><span>Used margin</span><strong>${formatCurrency(summary.usedMargin)}</strong></div>
+                        <div><span>Open PnL</span><strong class="${summary.totalUnrealized >= 0 ? 'value positive' : 'value negative'}">${formatSigned(summary.totalUnrealized)}</strong></div>
+                      </div>
+                    </div>
+                    <svg class="chart-svg" viewBox="0 0 760 240" preserveAspectRatio="none">
+                      <line x1="20" y1="30" x2="740" y2="30" stroke="rgba(255,255,255,0.05)" />
+                      <line x1="20" y1="120" x2="740" y2="120" stroke="rgba(255,255,255,0.05)" />
+                      <line x1="20" y1="210" x2="740" y2="210" stroke="rgba(255,255,255,0.05)" />
+                      ${accountLines}
+                      <polyline fill="none" stroke="#71a5ff" stroke-width="2.2" points="${equityPoints}"></polyline>
+                      <circle cx="740" cy="${equityPoints.split(' ').slice(-1)[0].split(',')[1]}" r="4" fill="#71a5ff"></circle>
+                      <text x="700" y="24" fill="#eef4ff" font-size="10" font-family="IBM Plex Mono">${formatCompact(summary.totalEquity)}</text>
+                      <text x="664" y="221" fill="#6d7a93" font-size="9">equity</text>
+                    </svg>
+                    <div class="chart-footer">
+                      <span class="chart-tag" style="color:#71a5ff">Portfolio</span>
+                      <span>${state.settings.showAccountCurves ? 'Account curves on' : 'Account curves off'} · no external legend</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="summary-grid">
+                <div class="summary-cell">
+                  <span>Wallet balance</span>
+                  <strong>${formatCurrency(summary.wallet)}</strong>
+                </div>
+                <div class="summary-cell">
+                  <span>Open positions</span>
+                  <strong>${summary.positions}</strong>
+                </div>
+                <div class="summary-cell">
+                  <span>Gross exposure</span>
+                  <strong>${formatCurrency(getScopedPositions().reduce((sum, row) => sum + row.notional, 0))}</strong>
+                </div>
+                <div class="summary-cell">
+                  <span>Account count</span>
+                  <strong>${summary.accounts}</strong>
+                </div>
+              </div>
+            </div>
+
+            <div class="monitor-side">
+              <div class="panel">
+                <div class="panel-header">
+                  <strong>Scope Snapshot</strong>
+                  <span>${getScopeLabel()}</span>
+                </div>
+                <div class="panel-body">
+                  <div class="account-stack">
+                    <div class="stack-cell">
+                      <span>Wallet</span>
+                      <strong>${formatCurrency(summary.wallet)}</strong>
+                    </div>
+                    <div class="stack-cell">
+                      <span>Available</span>
+                      <strong>${formatCurrency(summary.available)}</strong>
+                    </div>
+                    <div class="stack-cell">
+                      <span>Used margin</span>
+                      <strong>${formatCurrency(summary.usedMargin)}</strong>
+                    </div>
+                    <div class="stack-cell">
+                      <span>Open positions</span>
+                      <strong>${summary.positions}</strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="panel ${state.settings.showFeeBoard ? '' : 'is-hidden'}">
+                <div class="panel-header">
+                  <strong>Fee + Funding Drag</strong>
+                  <span>${state.settings.showFeeBoard ? 'visible' : 'hidden'}</span>
+                </div>
+                <div class="panel-body">
+                  <div class="fee-strip">
+                    ${feeRows
+                      .map(
+                        ([label, value]) => `
+                          <div class="list-row">
+                            <div><strong>${label}</strong><span>scope-derived</span></div>
+                            <div class="value ${value >= 0 ? 'positive' : 'negative'}">${formatSigned(value)}</div>
+                          </div>
+                        `
+                      )
+                      .join('')}
+                  </div>
+                </div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-header">
+                  <strong>Sync Health</strong>
+                  <span>scope counts</span>
+                </div>
+                <div class="panel-body">
+                  <div class="sync-stack">
+                    <div class="list-row"><div><strong>Synced</strong><span>fresh state</span></div><div class="value positive">${syncStates.synced}</div></div>
+                    <div class="list-row"><div><strong>Stale</strong><span>review with caution</span></div><div class="value warning">${syncStates.stale}</div></div>
+                    <div class="list-row"><div><strong>Degraded</strong><span>partial failure</span></div><div class="value negative">${syncStates.degraded}</div></div>
+                    <div class="list-row"><div><strong>Local only</strong><span>manual/import books</span></div><div class="value">${syncStates.local}</div></div>
+                    <div class="list-row"><div><strong>Lead account</strong><span>${ranked[0]?.name || 'n/a'}</span></div><div class="value">${ranked[0] ? formatCurrency(ranked[0].snapshotEquity) : 'n/a'}</div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      function renderExposureMonitor() {
+        const positions = getScopedPositions();
+        const grouped = positions.reduce((map, row) => {
+          map[row.symbol] = map[row.symbol] || { long: 0, short: 0, accounts: {} };
+          if (row.side === 'long') map[row.symbol].long += row.notional;
+          else map[row.symbol].short += row.notional;
+          map[row.symbol].accounts[row.accountName] = (map[row.symbol].accounts[row.accountName] || 0) + row.notional;
+          return map;
+        }, {});
+        const symbols = Object.entries(grouped)
+          .map(([symbol, value]) => ({
+            symbol,
+            long: value.long,
+            short: value.short,
+            net: value.long - value.short,
+            accounts: Object.entries(value.accounts).sort((a, b) => b[1] - a[1]),
+          }))
+          .sort((a, b) => Math.abs(b.net) - Math.abs(a.net));
+        const maxExposure = Math.max(...symbols.map((item) => Math.max(item.long, item.short, Math.abs(item.net))), 1);
+        const focus = symbols[0];
+        return `
+          <div class="monitor-grid">
+            <div class="panel">
+              <div class="panel-header">
+                <strong>Net Exposure Structure</strong>
+                <span>long / short / net direct labels</span>
+              </div>
+              <div class="panel-body">
+                <div class="bars">
+                  ${symbols
+                    .map((item) => {
+                      const longPct = (item.long / maxExposure) * 100;
+                      const shortPct = (item.short / maxExposure) * 100;
+                      return `
+                        <div class="bar-row">
+                          <strong>${item.symbol}</strong>
+                          <div class="bar-track">
+                            <div class="bar-stack">
+                              <span class="bar-segment" style="width:${longPct}%; background:rgba(73,199,136,0.68)"></span>
+                              <span class="bar-segment" style="width:${shortPct}%; background:rgba(240,108,118,0.68)"></span>
+                            </div>
+                            <div class="bar-label">
+                              <span>${formatCompact(item.long)} long</span>
+                              <span>${formatCompact(item.short)} short</span>
+                            </div>
+                          </div>
+                          <div class="bar-value ${item.net >= 0 ? 'positive' : 'negative'}">${item.net >= 0 ? '+' : '-'}${formatCompact(Math.abs(item.net))}</div>
+                        </div>
+                      `;
+                    })
+                    .join('')}
+                </div>
+              </div>
+            </div>
+
+            <div class="monitor-side">
+              <div class="panel">
+                <div class="panel-header">
+                  <strong>Selected Symbol</strong>
+                  <span>${focus ? focus.symbol : 'n/a'}</span>
+                </div>
+                <div class="panel-body">
+                  ${
+                    focus
+                      ? `
+                        <div class="summary-grid">
+                          <div class="summary-cell"><span>Long</span><strong>${formatCurrency(focus.long)}</strong></div>
+                          <div class="summary-cell"><span>Short</span><strong>${formatCurrency(focus.short)}</strong></div>
+                          <div class="summary-cell"><span>Net</span><strong>${formatSigned(focus.net)}</strong></div>
+                          <div class="summary-cell"><span>Contributors</span><strong>${focus.accounts.length}</strong></div>
+                        </div>
+                      `
+                      : '<div class="compact-empty">No scoped exposure.</div>'
+                  }
+                </div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-header">
+                  <strong>Account Contribution</strong>
+                  <span>selected symbol</span>
+                </div>
+                <div class="panel-body">
+                  <div class="account-stack">
+                    ${(focus?.accounts || [])
+                      .map(
+                        ([account, value]) => `
+                          <div class="list-row">
+                            <div><strong>${account}</strong><span>${focus.symbol}</span></div>
+                            <div class="value">${formatCurrency(value)}</div>
+                          </div>
+                        `
+                      )
+                      .join('')}
+                  </div>
+                </div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-header">
+                  <strong>Review Note</strong>
+                  <span>no floating legend</span>
+                </div>
+                <div class="panel-body">
+                  <div class="compact-empty">
+                    Exposure labels are printed directly on the bars so the operator reads the structure without chasing a separate legend block.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      function renderRiskMonitor() {
+        const positions = getScopedPositions();
+        const cards = getScopedAccounts()
+          .map((account) => {
+            const accountPositions = positions.filter((row) => row.accountId === account.id);
+            const grossExposure = accountPositions.reduce((sum, row) => sum + row.notional, 0);
+            const usedMargin = accountPositions.reduce((sum, row) => sum + row.marginUsed, 0);
+            const nearestDistance = accountPositions.reduce((nearest, row) => {
+              const current = row.markPrice || row.entryPrice;
+              const dist = Math.abs(((row.liquidationPrice - current) / current) * 100);
+              return Math.min(nearest, dist);
+            }, Infinity);
+            const avgLev = accountPositions.length
+              ? accountPositions.reduce((sum, row) => sum + row.leverage, 0) / accountPositions.length
+              : 0;
+            const maintenance = accountPositions.reduce((sum, row) => sum + row.maintenanceMargin, 0);
+            return {
+              account,
+              grossExposure,
+              usedMargin,
+              freeMargin: Math.max(account.availableBalance, 0),
+              nearestDistance,
+              avgLev,
+              maintenance,
+              openPositions: accountPositions.length,
+            };
+          })
+          .sort((left, right) => left.nearestDistance - right.nearestDistance);
+        const maxDistance = Math.max(...cards.map((card) => (isFinite(card.nearestDistance) ? card.nearestDistance : 0)), 1);
+
+        return `
+          <div class="panel" style="height:100%">
+            <div class="panel-header">
+              <strong>Per-Account Risk Ladder</strong>
+              <span>sorted by nearest liquidation distance</span>
+            </div>
+            <div class="panel-body">
+              <div class="risk-ladder">
+                ${cards
+                  .map((card) => {
+                    const pct = isFinite(card.nearestDistance) ? Math.max(8, (card.nearestDistance / maxDistance) * 100) : 0;
+                    const tone = card.nearestDistance < 6 ? 'var(--red)' : card.nearestDistance < 12 ? 'var(--amber)' : 'var(--green)';
+                    return `
+                      <div class="risk-row">
+                        <div class="risk-row-main">
+                          <strong>${card.account.name}</strong>
+                          <span>${titleCase(card.account.exchange)} · ${card.openPositions} open · ${card.avgLev.toFixed(1)}x avg</span>
+                        </div>
+                        <div>
+                          <div class="distance-track">
+                            <div class="distance-fill" style="width:${pct}%; background:${tone}"></div>
+                          </div>
+                          <div class="distance-meta">
+                            <span>maint ${formatCurrency(card.maintenance)}</span>
+                            <span>used ${formatCurrency(card.usedMargin)}</span>
+                            <span>free ${formatCurrency(card.freeMargin)}</span>
+                          </div>
+                        </div>
+                        <div class="value ${card.nearestDistance < 6 ? 'negative' : card.nearestDistance < 12 ? 'warning' : 'positive'}">${isFinite(card.nearestDistance) ? `${card.nearestDistance.toFixed(1)}%` : 'n/a'}</div>
+                      </div>
+                    `;
+                  })
+                  .join('')}
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      function renderPerformanceMonitor() {
+        const closed = getScopedClosedTrades();
+        const realizedSeries = [4200, 4660, 5120, 6380, 7240, 8100, 9340, 10860, 12340];
+        const unrealizedSeries = [920, 1140, 980, 1210, 1422, 1670, 1580, 1880, 2166];
+        const realizedLine = buildPolyline(realizedSeries, 760, 220, 18);
+        const unrealizedLine = buildPolyline(unrealizedSeries, 760, 220, 18);
+        const wins = closed.filter((trade) => trade.realizedPnl > 0).length;
+        const losses = closed.filter((trade) => trade.realizedPnl < 0).length;
+        const avgHold = '18.4h';
+        const feeDrag = closed.reduce((sum, row) => sum + row.feePaid, 0);
+        const fundingDrag = closed.reduce((sum, row) => sum + row.fundingPaid, 0);
+
+        return `
+          <div class="monitor-grid">
+            <div class="panel">
+              <div class="panel-header">
+                <strong>Realized vs Unrealized</strong>
+                <span>derived from closed trades + open positions</span>
+              </div>
+              <div class="panel-body">
+                <div class="chart-wrap">
+                  <div class="chart-head">
+                    <div>
+                      <strong>${formatCurrency(realizedSeries.at(-1))}</strong>
+                      <span>realized run-rate</span>
+                    </div>
+                    <div class="chart-kpis">
+                      <div><span>Wins</span><strong>${wins}</strong></div>
+                      <div><span>Losses</span><strong>${losses}</strong></div>
+                      <div><span>Avg hold</span><strong>${avgHold}</strong></div>
+                    </div>
+                  </div>
+                  <svg class="chart-svg" viewBox="0 0 760 220" preserveAspectRatio="none">
+                    <line x1="18" y1="36" x2="742" y2="36" stroke="rgba(255,255,255,0.05)" />
+                    <line x1="18" y1="110" x2="742" y2="110" stroke="rgba(255,255,255,0.05)" />
+                    <line x1="18" y1="184" x2="742" y2="184" stroke="rgba(255,255,255,0.05)" />
+                    <polyline fill="none" stroke="#71a5ff" stroke-width="2" points="${realizedLine}"></polyline>
+                    <polyline fill="none" stroke="#49c788" stroke-width="1.8" points="${unrealizedLine}"></polyline>
+                    <text x="666" y="28" fill="#71a5ff" font-size="10" font-family="IBM Plex Mono">realized</text>
+                    <text x="658" y="44" fill="#49c788" font-size="10" font-family="IBM Plex Mono">unrealized</text>
+                  </svg>
+                  <div class="chart-footer">
+                    <span class="chart-tag" style="color:#71a5ff">Realized</span>
+                    <span class="chart-tag" style="color:#49c788">Unrealized</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="monitor-side">
+              <div class="panel">
+                <div class="panel-header">
+                  <strong>Fee Drag</strong>
+                  <span>closed-trade derived</span>
+                </div>
+                <div class="panel-body">
+                  <div class="summary-grid">
+                    <div class="summary-cell"><span>Trading fees</span><strong>${formatCurrency(feeDrag)}</strong></div>
+                    <div class="summary-cell"><span>Funding drag</span><strong>${formatSigned(fundingDrag)}</strong></div>
+                    <div class="summary-cell"><span>Win / loss</span><strong>${wins} / ${losses}</strong></div>
+                    <div class="summary-cell"><span>Closed count</span><strong>${closed.length}</strong></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-header">
+                  <strong>Recent Closed Tape</strong>
+                  <span>distribution strip</span>
+                </div>
+                <div class="panel-body">
+                  <div class="bars">
+                    ${closed
+                      .slice(0, 4)
+                      .map((trade) => {
+                        const pct = Math.min(100, Math.max(12, (Math.abs(trade.realizedPnl) / 1600) * 100));
+                        const color = trade.realizedPnl >= 0 ? 'rgba(73,199,136,0.68)' : 'rgba(240,108,118,0.68)';
+                        return `
+                          <div class="bar-row">
+                            <strong>${trade.symbol}</strong>
+                            <div class="bar-track">
+                              <div class="bar-stack"><span class="bar-segment" style="width:${pct}%; background:${color}"></span></div>
+                              <div class="bar-label"><span>${trade.closedAt}</span><span>${trade.accountName}</span></div>
+                            </div>
+                            <div class="bar-value ${trade.realizedPnl >= 0 ? 'positive' : 'negative'}">${formatSigned(trade.realizedPnl)}</div>
+                          </div>
+                        `;
+                      })
+                      .join('')}
+                  </div>
+                </div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-header">
+                  <strong>Model Note</strong>
+                  <span>honesty</span>
+                </div>
+                <div class="panel-body">
+                  <div class="compact-empty">
+                    No Sharpe, profit factor, or score is shown here because the current backend does not own those metrics.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      function renderLedgerTabs() {
+        const tabs = document.getElementById('ledger-tabs');
+        tabs.innerHTML = ledgerTabs
+          .map(
+            (tab) => `
+              <button class="band-tab ${state.activeLedger === tab ? 'active' : ''}" data-ledger-tab="${tab}">
+                ${
+                  tab === 'positions'
+                    ? 'Positions'
+                    : tab === 'closed'
+                      ? 'Closed Trades'
+                      : tab === 'journal'
+                        ? 'Journal'
+                        : tab === 'funding'
+                          ? 'Funding'
+                          : 'Sync'
+                }
+              </button>
+            `
+          )
+          .join('');
+
+        tabs.querySelectorAll('[data-ledger-tab]').forEach((button) => {
+          button.addEventListener('click', () => {
+            state.activeLedger = button.dataset.ledgerTab;
+            renderLedgerTabs();
+            renderLedgerBody();
+          });
+        });
+      }
+
+      function renderLedgerBody() {
+        const tools = document.getElementById('ledger-tools');
+        if (state.activeLedger === 'positions') {
+          tools.innerHTML = `
+            <span class="filter-chip active">Grouped by account</span>
+            <span class="filter-chip">Compact rows</span>
+            <span class="mini-note">selected row drives inspector</span>
+          `;
+          document.getElementById('ledger-body').innerHTML = renderPositionsLedger();
+        } else if (state.activeLedger === 'closed') {
+          tools.innerHTML = `
+            <span class="filter-chip active">Account</span>
+            <span class="filter-chip">Exchange</span>
+            <span class="filter-chip">Symbol</span>
+            <span class="filter-chip">Time window</span>
+          `;
+          document.getElementById('ledger-body').innerHTML = renderClosedTradesLedger();
+        } else if (state.activeLedger === 'journal') {
+          tools.innerHTML = `
+            <span class="filter-chip active">Event kind</span>
+            <span class="filter-chip">Symbol</span>
+            <span class="filter-chip">Time window</span>
+          `;
+          document.getElementById('ledger-body').innerHTML = renderJournalLedger();
+        } else if (state.activeLedger === 'funding') {
+          tools.innerHTML = `
+            <span class="filter-chip active">Recent</span>
+            <span class="filter-chip">By account</span>
+            <span class="mini-note">compact tape view</span>
+          `;
+          document.getElementById('ledger-body').innerHTML = renderFundingLedger();
+        } else {
+          tools.innerHTML = `
+            <span class="filter-chip active">Latest cycle</span>
+            <span class="filter-chip">Retries visible</span>
+            <span class="mini-note">degraded paths explicit</span>
+          `;
+          document.getElementById('ledger-body').innerHTML = renderSyncLedger();
+        }
+      }
+
+      function renderPositionsLedger() {
+        const scopedAccounts = getScopedAccounts();
+        const scopedPositions = getScopedPositions();
+        const groups = scopedAccounts
+          .map((account) => ({
+            account,
+            rows: scopedPositions.filter((row) => row.accountId === account.id),
+          }))
+          .filter((group) => group.rows.length > 0);
+
+        return `
+          <div class="ledger-layout">
+            <div class="ledger-toolbar">
+              <div class="ledger-meta">
+                <span class="band-chip active">${groups.length} account groups</span>
+                <span class="band-chip">${scopedPositions.length} rows</span>
+              </div>
+              <div class="ledger-meta">
+                <span class="footer-note">Sticky group headers · row height ${state.settings.compactRows ? '36px' : '40px'}</span>
+              </div>
+            </div>
+            <div class="ledger-table-shell">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Exchange</th>
+                    <th>Account</th>
+                    <th>Symbol</th>
+                    <th>Side</th>
+                    <th>Mode</th>
+                    <th>Qty</th>
+                    <th>Notional</th>
+                    <th>Entry</th>
+                    <th>Mark</th>
+                    <th>Liq</th>
+                    <th>Margin</th>
+                    <th>Maint</th>
+                    <th>Unrealized</th>
+                    <th>Realized</th>
+                    <th>Fees</th>
+                    <th>Funding</th>
+                    <th>Sync</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${groups
+                    .map((group) => {
+                      const groupNotional = group.rows.reduce((sum, row) => sum + row.notional, 0);
+                      const groupPnl = group.rows.reduce((sum, row) => sum + row.unrealizedPnl, 0);
+                      return `
+                        <tr class="group-row">
+                          <td colspan="17">
+                            <div class="group-summary">
+                              <span>${group.account.name} · ${titleCase(group.account.exchange)} · ${group.rows.length} open</span>
+                              <span>${formatCurrency(groupNotional)} gross · ${formatSigned(groupPnl)} open PnL</span>
+                            </div>
+                          </td>
+                        </tr>
+                        ${group.rows
+                          .map(
+                            (row) => `
+                              <tr class="${state.selectedPositionId === row.id ? 'selected' : ''}" data-position-id="${row.id}">
+                                <td><span class="exchange-badge">${titleCase(row.exchange)}</span></td>
+                                <td>${row.accountName}</td>
+                                <td><strong>${row.symbol}</strong></td>
+                                <td class="${sideClass(row.side)}">${row.side.toUpperCase()}</td>
+                                <td>${row.marginMode.toUpperCase()}</td>
+                                <td class="number">${formatQty(row.quantity)}</td>
+                                <td class="number">${formatCurrency(row.notional)}</td>
+                                <td class="number">${formatQty(row.entryPrice)}</td>
+                                <td class="number">${formatQty(row.markPrice)}</td>
+                                <td class="number">${formatQty(row.liquidationPrice)}</td>
+                                <td class="number">${formatCurrency(row.marginUsed)}</td>
+                                <td class="number">${formatCurrency(row.maintenanceMargin)}</td>
+                                <td class="number ${row.unrealizedPnl >= 0 ? 'side-long' : 'side-short'}">${formatSigned(row.unrealizedPnl)}</td>
+                                <td class="number ${row.realizedPnl >= 0 ? 'side-long' : 'side-short'}">${formatSigned(row.realizedPnl)}</td>
+                                <td class="number">${formatSigned(-row.feePaid)}</td>
+                                <td class="number ${row.fundingPaid <= 0 ? 'side-long' : 'side-short'}">${formatSigned(-row.fundingPaid)}</td>
+                                <td><span class="sync-badge ${toneClass(row.syncTone)}">${row.syncTone}</span></td>
+                              </tr>
+                            `
+                          )
+                          .join('')}
+                      `;
+                    })
+                    .join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+      }
+
+      function renderClosedTradesLedger() {
+        const rows = getScopedClosedTrades();
+        return `
+          <div class="ledger-layout">
+            <div class="ledger-toolbar">
+              <div class="ledger-filters">
+                <span class="filter-chip active">${getScopeLabel()}</span>
+                <span class="filter-chip">${state.settings.historyWindow}</span>
+              </div>
+              <div class="ledger-meta">
+                <span class="footer-note">${rows.length} closed trades</span>
+              </div>
+            </div>
+            <div class="ledger-table-shell">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Closed</th>
+                    <th>Exchange</th>
+                    <th>Account</th>
+                    <th>Symbol</th>
+                    <th>Side</th>
+                    <th>Qty</th>
+                    <th>Entry</th>
+                    <th>Exit</th>
+                    <th>Realized</th>
+                    <th>Fees</th>
+                    <th>Funding</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rows
+                    .map(
+                      (row) => `
+                        <tr>
+                          <td class="number">${row.closedAt}</td>
+                          <td>${titleCase(row.exchange)}</td>
+                          <td>${row.accountName}</td>
+                          <td><strong>${row.symbol}</strong></td>
+                          <td class="${sideClass(row.side)}">${row.side.toUpperCase()}</td>
+                          <td class="number">${formatQty(row.quantity)}</td>
+                          <td class="number">${formatQty(row.entryPrice)}</td>
+                          <td class="number">${formatQty(row.exitPrice)}</td>
+                          <td class="number ${row.realizedPnl >= 0 ? 'side-long' : 'side-short'}">${formatSigned(row.realizedPnl)}</td>
+                          <td class="number">${formatSigned(-row.feePaid)}</td>
+                          <td class="number ${row.fundingPaid <= 0 ? 'side-long' : 'side-short'}">${formatSigned(-row.fundingPaid)}</td>
+                        </tr>
+                      `
+                    )
+                    .join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+      }
+
+      function renderJournalLedger() {
+        const rows = DATA.journal.filter((entry) =>
+          getScopedAccounts().some((account) => account.name === entry.account)
+        );
+        return `
+          <div class="ledger-layout">
+            <div class="ledger-toolbar">
+              <div class="ledger-filters">
+                <span class="filter-chip active">Position events</span>
+                <span class="filter-chip">${state.settings.defaultHistoryGrouping}</span>
+              </div>
+              <div class="ledger-meta">
+                <span class="footer-note">dense event tape, not card timeline</span>
+              </div>
+            </div>
+            <div class="timeline-ledger">
+              ${rows
+                .map(
+                  (row) => `
+                    <div class="timeline-row">
+                      <div class="number">${row.time}</div>
+                      <div><span class="timeline-kind kind-${row.kind}">${row.kind}</span></div>
+                      <div>${row.account}</div>
+                      <div><strong>${row.symbol}</strong> · ${row.detail}</div>
+                      <div class="number ${row.pnl >= 0 ? 'side-long' : 'side-short'}">${formatSigned(row.pnl)}</div>
+                      <div class="number">${row.source}</div>
+                    </div>
+                  `
+                )
+                .join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      function renderFundingLedger() {
+        const rows = getScopedFunding();
+        return `
+          <div class="ledger-layout">
+            <div class="ledger-toolbar">
+              <div class="ledger-filters">
+                <span class="filter-chip active">${rows.length} entries</span>
+                <span class="filter-chip">08h cadence</span>
+              </div>
+              <div class="ledger-meta"><span class="footer-note">tape-like funding panel</span></div>
+            </div>
+            <div class="ledger-table-shell">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Account</th>
+                    <th>Exchange</th>
+                    <th>Symbol</th>
+                    <th>Rate</th>
+                    <th>Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rows
+                    .map(
+                      (row) => `
+                        <tr>
+                          <td class="number">${row.time}</td>
+                          <td>${row.account}</td>
+                          <td>${titleCase(row.exchange)}</td>
+                          <td><strong>${row.symbol}</strong></td>
+                          <td class="number">${row.rate}</td>
+                          <td class="number ${row.amount.startsWith('+') ? 'side-long' : 'side-short'}">${row.amount}</td>
+                        </tr>
+                      `
+                    )
+                    .join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+      }
+
+      function renderSyncLedger() {
+        const rows = getScopedSyncJobs();
+        return `
+          <div class="ledger-layout">
+            <div class="ledger-toolbar">
+              <div class="ledger-filters">
+                <span class="filter-chip active">Latest cycle</span>
+                <span class="filter-chip">Failures isolated</span>
+              </div>
+              <div class="ledger-meta"><span class="footer-note">retry counts explicit</span></div>
+            </div>
+            <div class="ledger-table-shell">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Account</th>
+                    <th>Exchange</th>
+                    <th>Start</th>
+                    <th>Finish</th>
+                    <th>Attempts</th>
+                    <th>Positions</th>
+                    <th>Funding</th>
+                    <th>Result</th>
+                    <th>Error</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rows
+                    .map(
+                      (row) => `
+                        <tr>
+                          <td>${row.account}</td>
+                          <td>${titleCase(row.exchange)}</td>
+                          <td class="number">${row.startedAt}</td>
+                          <td class="number">${row.finishedAt}</td>
+                          <td class="number">${row.attempts}</td>
+                          <td class="number">${row.positionsSynced}</td>
+                          <td class="number">${row.fundingEntries}</td>
+                          <td><span class="sync-badge ${row.result === 'success' ? 'tone-synced' : 'tone-degraded'}">${row.result}</span></td>
+                          <td class="number ${row.error ? 'side-short' : ''}">${row.error || '—'}</td>
+                        </tr>
+                      `
+                    )
+                    .join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+      }
+
+      function renderInspector() {
+        const summary = getScopeSummary();
+        const selected = getSelectedPosition();
+        document.getElementById('inspector-head').innerHTML = `
+          <div>
+            <strong>Operator Inspector</strong>
+            <span>${getScopeLabel()} · ${summary.positions} positions · ${summary.accounts} accounts</span>
+          </div>
+          <div>
+            <span class="sync-badge ${toneClass(summary.positions ? 'synced' : 'local')}">${state.inspectorTab}</span>
+          </div>
+        `;
+
+        const tabRoot = document.getElementById('inspector-tabs');
+        tabRoot.innerHTML = inspectorTabs
+          .map(
+            (tab) => `
+              <button class="inspector-tab ${state.inspectorTab === tab ? 'active' : ''}" data-inspector-tab="${tab}">
+                ${tab === 'selection' ? 'Selection' : tab === 'account' ? 'Account' : tab === 'sync' ? 'Sync' : 'LAN'}
+              </button>
+            `
+          )
+          .join('');
+        tabRoot.querySelectorAll('[data-inspector-tab]').forEach((button) => {
+          button.addEventListener('click', () => {
+            state.inspectorTab = button.dataset.inspectorTab;
+            renderInspectorBody();
+            renderInspector();
+          });
+        });
+
+        renderInspectorBody();
+      }
+
+      function renderInspectorBody() {
+        const root = document.getElementById('inspector-body');
+        if (state.inspectorTab === 'selection') {
+          root.innerHTML = renderSelectionInspector();
+        } else if (state.inspectorTab === 'account') {
+          root.innerHTML = renderAccountInspector();
+        } else if (state.inspectorTab === 'sync') {
+          root.innerHTML = renderSyncInspector();
+        } else {
+          root.innerHTML = renderLanInspector();
+        }
+      }
+
+      function renderSelectionInspector() {
+        const position = getSelectedPosition();
+        if (!position) {
+          return `
+            <div class="compact-empty">
+              Select a row from the positions ledger to inspect liquidation, maintenance, fee drag, funding, and action paths.
+            </div>
+          `;
+        }
+
+        return `
+          <div class="inspector-section">
+            <div class="inspector-title">Selected Position</div>
+            <div class="inspector-card">
+              <div class="scope-title" style="margin-bottom:10px">
+                <strong>${position.symbol}</strong>
+                <span class="exchange-badge">${position.exchangeSymbol}</span>
+                <span class="mode-badge ${position.accountMode === 'live' ? 'mode-live' : 'mode-manual'}">${position.accountMode}</span>
+                <span class="risk-badge ${position.riskSource === 'live_exchange' ? 'tone-synced' : position.riskSource === 'local_engine' ? 'tone-local' : 'tone-stale'}">${titleCase(position.riskSource)}</span>
+              </div>
+              <div class="inspector-grid">
+                <div><span>Account</span><strong>${position.accountName}</strong></div>
+                <div><span>Venue</span><strong>${titleCase(position.exchange)}</strong></div>
+                <div><span>Side</span><strong class="${sideClass(position.side)}">${position.side.toUpperCase()}</strong></div>
+                <div><span>Margin mode</span><strong>${position.marginMode.toUpperCase()}</strong></div>
+                <div><span>Entry</span><strong>${formatQty(position.entryPrice)}</strong></div>
+                <div><span>Mark</span><strong>${formatQty(position.markPrice)}</strong></div>
+                <div><span>Liquidation</span><strong>${formatQty(position.liquidationPrice)}</strong></div>
+                <div><span>Notional</span><strong>${formatCurrency(position.notional)}</strong></div>
+                <div><span>Margin used</span><strong>${formatCurrency(position.marginUsed)}</strong></div>
+                <div><span>Maintenance</span><strong>${formatCurrency(position.maintenanceMargin)}</strong></div>
+                <div><span>Unrealized</span><strong class="${position.unrealizedPnl >= 0 ? 'value positive' : 'value negative'}">${formatSigned(position.unrealizedPnl)}</strong></div>
+                <div><span>Realized</span><strong class="${position.realizedPnl >= 0 ? 'value positive' : 'value negative'}">${formatSigned(position.realizedPnl)}</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="inspector-section">
+            <div class="inspector-title">Fees + Funding</div>
+            <div class="inspector-line"><span>Trade fees</span><strong>${formatSigned(-position.feePaid)}</strong></div>
+            <div class="inspector-line"><span>Funding</span><strong class="${position.fundingPaid <= 0 ? 'value positive' : 'value negative'}">${formatSigned(-position.fundingPaid)}</strong></div>
+            <div class="inspector-line"><span>Sync tone</span><strong>${position.syncTone}</strong></div>
+          </div>
+
+          <div class="inspector-section">
+            <div class="inspector-title">Actions</div>
+            <div class="action-stack">
+              <div class="action-row">
+                <button class="action-button">Edit</button>
+                ${
+                  position.accountMode === 'live'
+                    ? '<button class="action-button primary">Sync Account</button>'
+                    : '<button class="action-button primary">Close / Reduce</button>'
+                }
+              </div>
+              <div class="action-row">
+                ${
+                  position.accountMode === 'live'
+                    ? '<button class="action-button">View Journal</button><button class="action-button">Open Sync</button>'
+                    : '<button class="action-button">View Journal</button><button class="action-button danger">Delete</button>'
+                }
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      function renderAccountInspector() {
+        const accounts = getScopedAccounts();
+        const account = accounts[0] || null;
+        if (!account) {
+          return `<div class="compact-empty">No scoped account.</div>`;
+        }
+        const recentSync = DATA.syncJobs.find((job) => job.accountId === account.id);
+        return `
+          <div class="inspector-section">
+            <div class="inspector-title">Focused Account</div>
+            <div class="inspector-card">
+              <div class="scope-title" style="margin-bottom:10px">
+                <strong>${account.name}</strong>
+                <span class="exchange-badge">${titleCase(account.exchange)}</span>
+                <span class="mode-badge ${account.accountMode === 'live' ? 'mode-live' : account.accountMode === 'manual' ? 'mode-manual' : 'mode-import'}">${account.accountMode}</span>
+              </div>
+              <div class="inspector-grid">
+                <div><span>Wallet</span><strong>${formatCurrency(account.walletBalance)}</strong></div>
+                <div><span>Available</span><strong>${formatCurrency(account.availableBalance)}</strong></div>
+                <div><span>Snapshot equity</span><strong>${formatCurrency(account.snapshotEquity)}</strong></div>
+                <div><span>Sync tone</span><strong>${account.syncTone}</strong></div>
+              </div>
+            </div>
+          </div>
+          <div class="inspector-section">
+            <div class="inspector-title">Reference</div>
+            <div class="inspector-line"><span>External reference</span><strong>${account.externalReference || 'local only'}</strong></div>
+            <div class="inspector-line"><span>Last synced</span><strong>${account.lastSyncedAt}</strong></div>
+          </div>
+          <div class="inspector-section">
+            <div class="inspector-title">Recent Sync Snapshot</div>
+            ${
+              recentSync
+                ? `
+                  <div class="inspector-line"><span>Attempts</span><strong>${recentSync.attempts}</strong></div>
+                  <div class="inspector-line"><span>Positions synced</span><strong>${recentSync.positionsSynced}</strong></div>
+                  <div class="inspector-line"><span>Funding entries</span><strong>${recentSync.fundingEntries}</strong></div>
+                `
+                : `<div class="compact-empty">No live sync snapshot for this account.</div>`
+            }
+          </div>
+        `;
+      }
+
+      function renderSyncInspector() {
+        const rows = getScopedSyncJobs();
+        if (!rows.length) {
+          return `<div class="compact-empty">This scope is local-only. No live sync jobs.</div>`;
+        }
+        return `
+          <div class="inspector-section">
+            <div class="inspector-title">Sync Snapshot</div>
+            ${rows
+              .map(
+                (row) => `
+                  <div class="inspector-line">
+                    <span>${row.account} · ${titleCase(row.exchange)} · ${row.startedAt} → ${row.finishedAt}</span>
+                    <strong>${row.result} · ${row.attempts} attempt${row.attempts > 1 ? 's' : ''}</strong>
+                  </div>
+                `
+              )
+              .join('')}
+          </div>
+          <div class="inspector-section">
+            <div class="inspector-title">Degraded Detail</div>
+            <div class="compact-empty">
+              One broken account never hides inside the aggregate view. Retry count and cached-state fallback are rendered directly.
+            </div>
+          </div>
+        `;
+      }
+
+      function renderLanInspector() {
+        return `
+          <div class="inspector-section">
+            <div class="inspector-title">LAN Projection</div>
+            <div class="inspector-card">
+              <div class="inspector-grid">
+                <div><span>Enabled</span><strong>${DATA.lanStatus.enabled ? 'Yes' : 'No'}</strong></div>
+                <div><span>Bind mode</span><strong>${DATA.lanStatus.exposeToLan ? 'LAN' : 'localhost'}</strong></div>
+                <div><span>Bind address</span><strong>${DATA.lanStatus.bindAddress}</strong></div>
+                <div><span>Token</span><strong>${DATA.lanStatus.tokenState}</strong></div>
+              </div>
+            </div>
+          </div>
+          <div class="inspector-section">
+            <div class="inspector-title">Viewer URL</div>
+            <div class="inspector-line"><span>Read-only</span><strong>${DATA.lanStatus.publicUrl}</strong></div>
+          </div>
+          <div class="inspector-section">
+            <div class="inspector-title">Boundary</div>
+            <div class="compact-empty">
+              This mockup exposes LAN state only. No credentials or secret material appear anywhere in the desk.
+            </div>
+          </div>
+        `;
+      }
+
+      function renderOverlay() {
+        const backdrop = document.getElementById('overlay-backdrop');
+        const sheet = document.getElementById('overlay-sheet');
+        if (!state.activeOverlay) {
+          backdrop.classList.remove('open');
+          sheet.classList.remove('open');
+          sheet.innerHTML = '';
+          return;
+        }
+        backdrop.classList.add('open');
+        sheet.classList.add('open');
+
+        if (state.activeOverlay === 'manual') {
+          sheet.innerHTML = renderManualOverlay();
+        } else if (state.activeOverlay === 'account') {
+          sheet.innerHTML = renderAccountOverlay();
+        } else if (state.activeOverlay === 'import') {
+          sheet.innerHTML = renderImportOverlay();
+        } else {
+          sheet.innerHTML = renderSettingsOverlay();
+        }
+
+        sheet.querySelector('[data-close-overlay]')?.addEventListener('click', () => {
+          state.activeOverlay = null;
+          renderOverlay();
+        });
+
+        sheet.querySelectorAll('[data-manual-step]').forEach((button) => {
+          button.addEventListener('click', () => {
+            state.manualStep = button.dataset.manualStep;
+            renderOverlay();
+          });
+        });
+
+        sheet.querySelectorAll('[data-account-overlay-tab]').forEach((button) => {
+          button.addEventListener('click', () => {
+            state.accountOverlayTab = button.dataset.accountOverlayTab;
+            renderOverlay();
+          });
+        });
+
+        sheet.querySelectorAll('[data-market-option]').forEach((button) => {
+          button.addEventListener('click', () => {
+            state.selectedManualMarket = button.dataset.marketOption;
+            renderOverlay();
+          });
+        });
+
+        sheet.querySelectorAll('[data-setting-toggle]').forEach((button) => {
+          button.addEventListener('click', () => {
+            const key = button.dataset.settingToggle;
+            state.settings[key] = !state.settings[key];
+            render();
+          });
+        });
+
+        backdrop.onclick = () => {
+          state.activeOverlay = null;
+          renderOverlay();
+        };
+      }
+
+      function renderManualOverlay() {
+        const marketSet = state.selectedManualMarket === 'BTC'
+          ? DATA.marketOptions.hyperliquid
+          : DATA.marketOptions.blofin;
+        const selectedMarket = marketSet[0];
+        return `
+          <div class="overlay-header">
+            <div>
+              <strong>Manual Position</strong>
+              <span>Right-side capture sheet. Layered workflow, not a flat page form.</span>
+            </div>
+            <button class="overlay-close" data-close-overlay>×</button>
+          </div>
+          <div class="stepper">
+            <button class="step-chip ${state.manualStep === 'contract' ? 'active' : ''}" data-manual-step="contract">1 · Contract</button>
+            <button class="step-chip ${state.manualStep === 'economics' ? 'active' : ''}" data-manual-step="economics">2 · Economics</button>
+            <button class="step-chip ${state.manualStep === 'review' ? 'active' : ''}" data-manual-step="review">3 · Review</button>
+          </div>
+          <div class="overlay-body">
+            ${
+              state.manualStep === 'contract'
+                ? `
+                  <div class="form-stack">
+                    <div class="form-grid">
+                      <div class="field"><label>Account</label><select><option>Manual Core · MANUAL</option><option>HL Vault · HYPERLIQUID</option></select></div>
+                      <div class="field"><label>Exchange</label><select><option>Hyperliquid</option><option>BloFin</option></select></div>
+                    </div>
+                    <div class="picker-shell">
+                      <strong>Symbol Picker</strong>
+                      <span>Exchange-backed markets. Pickable, not write-only.</span>
+                      <div class="picker-list">
+                        ${marketSet
+                          .map(
+                            (market) => `
+                              <button class="picker-row ${selectedMarket.exchangeSymbol === market.exchangeSymbol ? 'active' : ''}" data-market-option="${market.exchangeSymbol === 'BTC' || market.exchangeSymbol === 'BTC-USDT' ? 'BTC' : 'ETH'}">
+                                <div>
+                                  <strong>${market.symbol}</strong>
+                                  <span>${market.exchangeSymbol} · mark ${market.mark}</span>
+                                </div>
+                                <div class="value">${market.maxLev}</div>
+                              </button>
+                            `
+                          )
+                          .join('')}
+                      </div>
+                    </div>
+                    <div class="form-grid">
+                      <div class="field"><label>Side</label><select><option>Long</option><option>Short</option></select></div>
+                      <div class="field"><label>Margin Mode</label><select><option>Cross</option><option>Isolated</option></select></div>
+                    </div>
+                  </div>
+                `
+                : state.manualStep === 'economics'
+                  ? `
+                    <div class="form-stack">
+                      <div class="form-grid">
+                        <div class="field"><label>Quantity</label><input value="12.00" /></div>
+                        <div class="field"><label>Leverage</label><input value="4.0" /></div>
+                        <div class="field"><label>Entry</label><input value="3262.00" /></div>
+                        <div class="field"><label>Mark Context</label><input value="${selectedMarket.mark}" /></div>
+                        <div class="field"><label>Fee Override</label><input value="34.00" /></div>
+                        <div class="field"><label>Funding Override</label><input value="12.00" /></div>
+                      </div>
+                      <div class="form-grid">
+                        <div class="field"><label>Margin Used Override</label><input value="9870.00" /></div>
+                        <div class="field"><label>Liquidation Override</label><input value="" placeholder="Leave empty for engine" /></div>
+                      </div>
+                      <div class="compact-empty">
+                        Mark and symbol are exchange-backed here. Blank liquidation keeps the value engine-derived.
+                      </div>
+                    </div>
+                  `
+                  : `
+                    <div class="form-stack">
+                      <div class="review-card">
+                        <strong>Final Review</strong>
+                        <span>Uses real Cassini field grammar. Derived vs user-entered is explicit.</span>
+                        <div class="review-grid">
+                          <div><span>Account</span><strong>Manual Core</strong></div>
+                          <div><span>Market</span><strong>ETH-PERP · ETH-USDT</strong></div>
+                          <div><span>Side / mode</span><strong>LONG · ISOLATED</strong></div>
+                          <div><span>Leverage</span><strong>4.0x</strong></div>
+                          <div><span>Entry</span><strong>3262.00</strong></div>
+                          <div><span>Mark</span><strong>3307.00</strong></div>
+                          <div><span>Notional</span><strong>${formatCurrency(39480)}</strong></div>
+                          <div><span>Margin used</span><strong>${formatCurrency(9870)}</strong></div>
+                          <div><span>Maintenance</span><strong>${formatCurrency(512)}</strong></div>
+                          <div><span>Liquidation</span><strong>engine-derived</strong></div>
+                          <div><span>Fees</span><strong>${formatCurrency(34)}</strong></div>
+                          <div><span>Funding</span><strong>${formatCurrency(12)}</strong></div>
+                        </div>
+                      </div>
+                      <div class="summary-grid">
+                        <div class="summary-cell"><span>Mark source</span><strong>exchange quote</strong></div>
+                        <div class="summary-cell"><span>Risk source</span><strong>local engine</strong></div>
+                        <div class="summary-cell"><span>User entered</span><strong>fee, funding</strong></div>
+                        <div class="summary-cell"><span>Derived</span><strong>maintenance, liq</strong></div>
+                      </div>
+                    </div>
+                  `
+            }
+            <div class="overlay-footer">
+              <div class="footer-note">Manual/import close-reduce path exists in backend and is represented in this mockup.</div>
+              <div class="footer-actions">
+                ${
+                  state.manualStep === 'contract'
+                    ? ''
+                    : '<button class="footer-button" data-manual-step="' + (state.manualStep === 'economics' ? 'contract' : 'economics') + '">Back</button>'
+                }
+                ${
+                  state.manualStep === 'review'
+                    ? '<button class="footer-button primary">Save Position</button>'
+                    : '<button class="footer-button primary" data-manual-step="' + (state.manualStep === 'contract' ? 'economics' : 'review') + '">Next</button>'
+                }
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      function renderAccountOverlay() {
+        return `
+          <div class="overlay-header">
+            <div>
+              <strong>Add Account</strong>
+              <span>Live read-only and local/import stay in the same layered flow.</span>
+            </div>
+            <button class="overlay-close" data-close-overlay>×</button>
+          </div>
+          <div class="overlay-tabs">
+            <button class="overlay-tab ${state.accountOverlayTab === 'live' ? 'active' : ''}" data-account-overlay-tab="live">Live Read-Only</button>
+            <button class="overlay-tab ${state.accountOverlayTab === 'local' ? 'active' : ''}" data-account-overlay-tab="local">Local / Import</button>
+          </div>
+          <div class="overlay-body">
+            ${
+              state.accountOverlayTab === 'live'
+                ? `
+                  <div class="form-stack">
+                    <div class="form-grid">
+                      <div class="field"><label>Venue</label><select><option>BloFin</option><option>Hyperliquid</option></select></div>
+                      <div class="field"><label>Account Label</label><input value="HL Vault 02" /></div>
+                      <div class="field"><label>Wallet / Ref</label><input value="0x8b...c199" /></div>
+                      <div class="field"><label>Connection Label</label><input value="Research Seat" /></div>
+                    </div>
+                    <div class="review-card">
+                      <strong>Validation Preview</strong>
+                      <span>Credentials validate first, then first sync is launched. No key material is shown.</span>
+                      <div class="summary-grid">
+                        <div class="summary-cell"><span>Status</span><strong>validated</strong></div>
+                        <div class="summary-cell"><span>First sync</span><strong>pending</strong></div>
+                      </div>
+                    </div>
+                    <div class="overlay-footer">
+                      <div class="footer-note">Read-only exchange mode only.</div>
+                      <div class="footer-actions">
+                        <button class="footer-button">Validate</button>
+                        <button class="footer-button primary">Create + Sync</button>
+                      </div>
+                    </div>
+                  </div>
+                `
+                : `
+                  <div class="form-stack">
+                    <div class="form-grid">
+                      <div class="field"><label>Name</label><input value="Manual Research Book" /></div>
+                      <div class="field"><label>Exchange Identity</label><select><option>Manual / Local</option><option>Imported / Unsupported</option><option>BloFin</option><option>Hyperliquid</option></select></div>
+                      <div class="field"><label>Wallet Balance</label><input value="25000" /></div>
+                      <div class="field"><label>Notes</label><input value="carry basket" /></div>
+                    </div>
+                    <div class="overlay-footer">
+                      <div class="footer-note">Local books are first-class, not fallback mode.</div>
+                      <div class="footer-actions">
+                        <button class="footer-button primary">Create Local Account</button>
+                      </div>
+                    </div>
+                  </div>
+                `
+            }
+          </div>
+        `;
+      }
+
+      function renderImportOverlay() {
+        return `
+          <div class="overlay-header">
+            <div>
+              <strong>CSV Import</strong>
+              <span>Right-side import drawer with accepted and rejected rows surfaced directly.</span>
+            </div>
+            <button class="overlay-close" data-close-overlay>×</button>
+          </div>
+          <div class="overlay-body">
+            <div class="form-stack">
+              <div class="form-grid">
+                <div class="field"><label>Source Exchange</label><select><option>Imported / Unsupported</option><option>BloFin</option><option>Hyperliquid</option></select></div>
+                <div class="field"><label>Target Account</label><select><option>Imported Legacy</option><option>Manual Core</option></select></div>
+              </div>
+              <div class="field">
+                <label>Payload</label>
+                <textarea>symbol,exchange_symbol,margin_mode,side,entry_price,quantity,leverage,mark_price
+BTC-PERP,BTC,cross,long,69220,1.2,5,69660
+ETH-PERP,ETH,isolated,short,3314,12,4,3301</textarea>
+              </div>
+              <div class="import-results">
+                <div class="summary-cell"><span>Accepted</span><strong>38 rows</strong></div>
+                <div class="summary-cell"><span>Rejected</span><strong>2 rows</strong></div>
+              </div>
+              <div class="rejected-table">
+                <table>
+                  <thead>
+                    <tr><th>Row</th><th>Reason</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td class="number">12</td><td>Leverage exceeds max market rule</td></tr>
+                    <tr><td class="number">19</td><td>Quantity step mismatch</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="overlay-footer">
+                <div class="footer-note">Mocked from current backend import contract and partial-reject behavior.</div>
+                <div class="footer-actions">
+                  <button class="footer-button">Validate</button>
+                  <button class="footer-button primary">Import Rows</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      function renderSettingsOverlay() {
+        return `
+          <div class="overlay-header">
+            <div>
+              <strong>Workspace Settings</strong>
+              <span>Real operator controls, not a shallow toggles page.</span>
+            </div>
+            <button class="overlay-close" data-close-overlay>×</button>
+          </div>
+          <div class="overlay-body">
+            <div class="form-stack">
+              <div class="settings-section">
+                <strong>Layout</strong>
+                <div class="settings-list">
+                  <div class="settings-row">
+                    <div class="settings-copy"><span>Compact rows</span><small>Changes ledger density immediately in the mockup.</small></div>
+                    <button class="toggle ${state.settings.compactRows ? 'active' : ''}" data-setting-toggle="compactRows"><span></span></button>
+                  </div>
+                  <div class="settings-row">
+                    <div class="settings-copy"><span>Account curves</span><small>Shows thin account curves behind the portfolio curve.</small></div>
+                    <button class="toggle ${state.settings.showAccountCurves ? 'active' : ''}" data-setting-toggle="showAccountCurves"><span></span></button>
+                  </div>
+                  <div class="settings-row">
+                    <div class="settings-copy"><span>Fee board</span><small>Keeps fee and funding drag visible in the overview rail.</small></div>
+                    <button class="toggle ${state.settings.showFeeBoard ? 'active' : ''}" data-setting-toggle="showFeeBoard"><span></span></button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="settings-section">
+                <strong>Review</strong>
+                <div class="form-grid" style="margin-top:8px">
+                  <div class="field"><label>Default history grouping</label><select><option ${state.settings.defaultHistoryGrouping === 'time' ? 'selected' : ''}>time</option><option>account</option><option>exchange</option></select></div>
+                  <div class="field"><label>Default history window</label><select><option ${state.settings.historyWindow === '30d' ? 'selected' : ''}>30d</option><option>7d</option><option>90d</option><option>all</option></select></div>
+                </div>
+              </div>
+
+              <div class="settings-section">
+                <strong>Sync + LAN</strong>
+                <div class="summary-grid" style="margin-top:8px">
+                  <div class="summary-cell"><span>Auto-sync interval</span><strong>${DATA.autoSyncStatus.intervalSeconds}s</strong></div>
+                  <div class="summary-cell"><span>Next cycle</span><strong>${DATA.autoSyncStatus.nextScheduledAt}</strong></div>
+                  <div class="summary-cell"><span>LAN mode</span><strong>${DATA.lanStatus.exposeToLan ? 'LAN' : 'localhost'}</strong></div>
+                  <div class="summary-cell"><span>Viewer token</span><strong>${DATA.lanStatus.tokenState}</strong></div>
+                </div>
+              </div>
+
+              <div class="settings-section">
+                <strong>Honesty</strong>
+                <div class="compact-empty" style="margin-top:8px">
+                  Manual/local badges, derived risk badges, stale markers, and degraded sync surfaces remain visible by default. No fake “clean mode” hides uncertainty.
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      function attachLedgerRowHandlers() {
+        document.querySelectorAll('[data-position-id]').forEach((row) => {
+          row.addEventListener('click', () => {
+            state.selectedPositionId = row.dataset.positionId;
+            state.inspectorTab = 'selection';
+            render();
+          });
+        });
+      }
+
+      function render() {
+        document.getElementById('shell').classList.toggle('compact-rows', !!state.settings.compactRows);
+        renderPresetSwitcher();
+        renderTopBar();
+        renderScopeRail();
+        renderMonitorTabs();
+        renderMonitorBody();
+        renderLedgerTabs();
+        renderLedgerBody();
+        renderInspector();
+        renderOverlay();
+        attachLedgerRowHandlers();
+      }
+
+      applyPreset('overview');
+    </script>
+  </body>
+</html>

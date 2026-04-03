@@ -364,6 +364,10 @@ impl PortfolioRepository {
         self.ensure_account_column("account_mode", "TEXT NOT NULL DEFAULT 'manual'")?;
         self.ensure_account_column("external_reference", "TEXT")?;
         self.ensure_account_column("sync_error", "TEXT")?;
+        self.ensure_account_column("bonus_balance", "REAL NOT NULL DEFAULT 0")?;
+        self.ensure_account_column("bonus_fee_deduction_rate", "REAL NOT NULL DEFAULT 0")?;
+        self.ensure_account_column("bonus_loss_deduction_rate", "REAL NOT NULL DEFAULT 0")?;
+        self.ensure_account_column("bonus_funding_deduction_rate", "REAL NOT NULL DEFAULT 0")?;
         self.ensure_position_column("exchange_symbol", "TEXT")?;
         self.ensure_position_column("margin_mode", "TEXT")?;
         self.ensure_position_column("margin_used", "REAL")?;
@@ -372,6 +376,10 @@ impl PortfolioRepository {
         self.ensure_position_column("maintenance_margin_rate", "REAL")?;
         self.ensure_position_column("risk_source", "TEXT")?;
         self.ensure_exchange_market_column("contract_value", "REAL")?;
+        self.ensure_account_column("bonus_balance", "REAL NOT NULL DEFAULT 0")?;
+        self.ensure_account_column("bonus_fee_deduction_rate", "REAL NOT NULL DEFAULT 0")?;
+        self.ensure_account_column("bonus_loss_deduction_rate", "REAL NOT NULL DEFAULT 0")?;
+        self.ensure_account_column("bonus_funding_deduction_rate", "REAL NOT NULL DEFAULT 0")?;
         Ok(())
     }
 
@@ -391,6 +399,10 @@ impl PortfolioRepository {
                 exchange,
                 wallet_balance: 0.0,
                 notes: Some("Live read-only account".into()),
+                bonus_balance: None,
+                bonus_fee_deduction_rate: None,
+                bonus_loss_deduction_rate: None,
+                bonus_funding_deduction_rate: None,
             },
             AccountMode::Live,
             Some(external_reference),
@@ -424,6 +436,28 @@ impl PortfolioRepository {
                 .unwrap_or(account.wallet_balance)
                 .max(0.0),
         };
+        let bonus_balance = input
+            .bonus_balance
+            .unwrap_or(account.bonus_balance)
+            .max(0.0);
+        let bonus_fee_deduction_rate = validate_bonus_rate(
+            input
+                .bonus_fee_deduction_rate
+                .unwrap_or(account.bonus_fee_deduction_rate),
+            "bonus fee deduction rate",
+        )?;
+        let bonus_loss_deduction_rate = validate_bonus_rate(
+            input
+                .bonus_loss_deduction_rate
+                .unwrap_or(account.bonus_loss_deduction_rate),
+            "bonus loss deduction rate",
+        )?;
+        let bonus_funding_deduction_rate = validate_bonus_rate(
+            input
+                .bonus_funding_deduction_rate
+                .unwrap_or(account.bonus_funding_deduction_rate),
+            "bonus funding deduction rate",
+        )?;
         let available_balance = match account.account_mode {
             AccountMode::Live => account.available_balance,
             _ => wallet_balance,
@@ -439,7 +473,11 @@ impl PortfolioRepository {
                  wallet_balance = ?3,
                  available_balance = ?4,
                  snapshot_equity = ?5,
-                 notes = ?6
+                 notes = ?6,
+                 bonus_balance = ?7,
+                 bonus_fee_deduction_rate = ?8,
+                 bonus_loss_deduction_rate = ?9,
+                 bonus_funding_deduction_rate = ?10
              WHERE id = ?1",
             params![
                 input.id,
@@ -448,6 +486,10 @@ impl PortfolioRepository {
                 available_balance,
                 snapshot_equity,
                 notes,
+                bonus_balance,
+                bonus_fee_deduction_rate,
+                bonus_loss_deduction_rate,
+                bonus_funding_deduction_rate,
             ],
         )?;
 
@@ -462,7 +504,8 @@ impl PortfolioRepository {
         self.connection
             .query_row(
                 "SELECT id, name, exchange, account_mode, wallet_balance, available_balance, snapshot_equity, currency,
-                        external_reference, notes, sync_status, sync_error, created_at, last_synced_at
+                        external_reference, notes, sync_status, sync_error, created_at, last_synced_at,
+                        bonus_balance, bonus_fee_deduction_rate, bonus_loss_deduction_rate, bonus_funding_deduction_rate
                  FROM accounts WHERE id = ?1 LIMIT 1",
                 params![account_id],
                 read_account_row,
@@ -1002,6 +1045,10 @@ impl PortfolioRepository {
                             exchange: input.exchange,
                             wallet_balance: 0.0,
                             notes: Some("Auto-created from CSV import".into()),
+                            bonus_balance: None,
+                            bonus_fee_deduction_rate: None,
+                            bonus_loss_deduction_rate: None,
+                            bonus_funding_deduction_rate: None,
                         },
                         AccountMode::Import,
                         None,
@@ -1088,7 +1135,7 @@ impl PortfolioRepository {
                 .unwrap_or_else(|| "Local state only".into()),
         );
         let exposure = metrics::exposure_with_notionals(&positions, &notionals);
-        let performance = metrics::performance(&positions);
+        let performance = metrics::performance(&accounts, &positions);
 
         Ok(BootstrapState {
             accounts,
@@ -1476,12 +1523,27 @@ impl PortfolioRepository {
         }
 
         let now = Utc::now();
+        let bonus_balance = input.bonus_balance.unwrap_or(0.0).max(0.0);
+        let bonus_fee_deduction_rate = validate_bonus_rate(
+            input.bonus_fee_deduction_rate.unwrap_or(0.0),
+            "bonus fee deduction rate",
+        )?;
+        let bonus_loss_deduction_rate = validate_bonus_rate(
+            input.bonus_loss_deduction_rate.unwrap_or(0.0),
+            "bonus loss deduction rate",
+        )?;
+        let bonus_funding_deduction_rate = validate_bonus_rate(
+            input.bonus_funding_deduction_rate.unwrap_or(0.0),
+            "bonus funding deduction rate",
+        )?;
         let identifier = Uuid::new_v4().to_string();
         self.connection.execute(
             "INSERT INTO accounts (
                 id, name, exchange, account_mode, wallet_balance, available_balance, snapshot_equity,
-                currency, external_reference, notes, sync_status, sync_error, created_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?5, ?5, ?6, ?7, ?8, ?9, NULL, ?10)",
+                currency, external_reference, notes, sync_status, sync_error, created_at,
+                bonus_balance, bonus_fee_deduction_rate, bonus_loss_deduction_rate,
+                bonus_funding_deduction_rate
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?5, ?5, ?6, ?7, ?8, ?9, NULL, ?10, ?11, ?12, ?13, ?14)",
             params![
                 identifier,
                 input.name.trim(),
@@ -1496,6 +1558,10 @@ impl PortfolioRepository {
                     _ => SyncStatus::Manual,
                 }),
                 now.to_rfc3339(),
+                bonus_balance,
+                bonus_fee_deduction_rate,
+                bonus_loss_deduction_rate,
+                bonus_funding_deduction_rate,
             ],
         )?;
 
@@ -1772,6 +1838,7 @@ impl PortfolioRepository {
                         }
                         (ExchangeKind::Blofin, MarginMode::Cross) => {
                             let collateral_pool = account.wallet_balance
+                                + account.bonus_balance
                                 - prepared
                                     .iter()
                                     .filter(|other| {
@@ -1822,6 +1889,7 @@ impl PortfolioRepository {
                         }
                         (ExchangeKind::Hyperliquid, MarginMode::Cross) => {
                             let collateral_pool = account.wallet_balance
+                                + account.bonus_balance
                                 - prepared
                                     .iter()
                                     .filter(|other| {
@@ -2266,7 +2334,8 @@ impl PortfolioRepository {
     fn fetch_accounts(&self) -> AppResult<Vec<ExchangeAccount>> {
         let mut statement = self.connection.prepare(
             "SELECT id, name, exchange, account_mode, wallet_balance, available_balance, snapshot_equity, currency,
-                    external_reference, notes, sync_status, sync_error, created_at, last_synced_at
+                    external_reference, notes, sync_status, sync_error, created_at, last_synced_at,
+                    bonus_balance, bonus_fee_deduction_rate, bonus_loss_deduction_rate, bonus_funding_deduction_rate
              FROM accounts ORDER BY created_at DESC",
         )?;
 
@@ -2762,6 +2831,10 @@ fn read_account_row(row: &Row<'_>) -> Result<ExchangeAccount, rusqlite::Error> {
         sync_error: row.get(11)?,
         created_at: parse_datetime(row.get::<_, String>(12)?),
         last_synced_at: row.get::<_, Option<String>>(13)?.map(parse_datetime),
+        bonus_balance: row.get(14)?,
+        bonus_fee_deduction_rate: row.get(15)?,
+        bonus_loss_deduction_rate: row.get(16)?,
+        bonus_funding_deduction_rate: row.get(17)?,
     })
 }
 
@@ -3110,6 +3183,16 @@ fn normalize_optional_text(value: Option<String>) -> Option<String> {
     value
         .map(|item| item.trim().to_string())
         .filter(|item| !item.is_empty())
+}
+
+fn validate_bonus_rate(value: f64, field_name: &str) -> AppResult<f64> {
+    if (0.0..=1.0).contains(&value) {
+        Ok(value)
+    } else {
+        Err(invalid_input(format!(
+            "{field_name} must be between 0.0 and 1.0"
+        )))
+    }
 }
 
 fn normalize_symbol_like(value: Option<String>) -> Option<String> {
@@ -3473,6 +3556,10 @@ mod tests {
                 exchange: ExchangeKind::Hyperliquid,
                 wallet_balance: 1500.0,
                 notes: None,
+                bonus_balance: None,
+                bonus_fee_deduction_rate: None,
+                bonus_loss_deduction_rate: None,
+                bonus_funding_deduction_rate: None,
             })
             .expect("manual account should be created");
 
@@ -3520,6 +3607,10 @@ mod tests {
                 exchange: ExchangeKind::Blofin,
                 wallet_balance: 200.0,
                 notes: None,
+                bonus_balance: None,
+                bonus_fee_deduction_rate: None,
+                bonus_loss_deduction_rate: None,
+                bonus_funding_deduction_rate: None,
             })
             .expect("manual account should be created");
         repo.upsert_exchange_markets(&[sample_blofin_eth_market(1591.69)])
@@ -3572,6 +3663,10 @@ mod tests {
                 exchange: ExchangeKind::Blofin,
                 wallet_balance: 100.0,
                 notes: None,
+                bonus_balance: None,
+                bonus_fee_deduction_rate: None,
+                bonus_loss_deduction_rate: None,
+                bonus_funding_deduction_rate: None,
             })
             .expect("manual account should be created");
         repo.upsert_exchange_markets(&[sample_blofin_eth_market(1500.0)])
@@ -3716,6 +3811,10 @@ mod tests {
                 exchange: ExchangeKind::Manual,
                 wallet_balance: 5000.0,
                 notes: None,
+                bonus_balance: None,
+                bonus_fee_deduction_rate: None,
+                bonus_loss_deduction_rate: None,
+                bonus_funding_deduction_rate: None,
             })
             .expect("manual account should be created");
 
@@ -4142,6 +4241,10 @@ mod tests {
                 exchange: ExchangeKind::Manual,
                 wallet_balance: 1000.0,
                 notes: None,
+                bonus_balance: None,
+                bonus_fee_deduction_rate: None,
+                bonus_loss_deduction_rate: None,
+                bonus_funding_deduction_rate: None,
             })
             .expect("manual account should be created");
         let imported = repo
@@ -4151,6 +4254,10 @@ mod tests {
                     exchange: ExchangeKind::Import,
                     wallet_balance: 0.0,
                     notes: None,
+                    bonus_balance: None,
+                    bonus_fee_deduction_rate: None,
+                    bonus_loss_deduction_rate: None,
+                    bonus_funding_deduction_rate: None,
                 },
                 AccountMode::Import,
                 None,
@@ -4237,6 +4344,10 @@ mod tests {
                 exchange: ExchangeKind::Manual,
                 wallet_balance: 2500.0,
                 notes: None,
+                bonus_balance: None,
+                bonus_fee_deduction_rate: None,
+                bonus_loss_deduction_rate: None,
+                bonus_funding_deduction_rate: None,
             })
             .expect("manual account should be created");
 
@@ -4401,6 +4512,10 @@ mod tests {
                 exchange: ExchangeKind::Manual,
                 wallet_balance: 5000.0,
                 notes: None,
+                bonus_balance: None,
+                bonus_fee_deduction_rate: None,
+                bonus_loss_deduction_rate: None,
+                bonus_funding_deduction_rate: None,
             })
             .expect("manual account should be created");
         let live = repo
@@ -4540,6 +4655,10 @@ mod tests {
                 exchange: ExchangeKind::Manual,
                 wallet_balance: 5000.0,
                 notes: None,
+                bonus_balance: None,
+                bonus_fee_deduction_rate: None,
+                bonus_loss_deduction_rate: None,
+                bonus_funding_deduction_rate: None,
             })
             .expect("manual account should be created");
 
@@ -4597,6 +4716,10 @@ mod tests {
                 exchange: ExchangeKind::Manual,
                 wallet_balance: 5000.0,
                 notes: None,
+                bonus_balance: None,
+                bonus_fee_deduction_rate: None,
+                bonus_loss_deduction_rate: None,
+                bonus_funding_deduction_rate: None,
             })
             .expect("manual account should be created");
 
@@ -4666,6 +4789,10 @@ mod tests {
                 exchange: ExchangeKind::Manual,
                 wallet_balance: 4000.0,
                 notes: None,
+                bonus_balance: None,
+                bonus_fee_deduction_rate: None,
+                bonus_loss_deduction_rate: None,
+                bonus_funding_deduction_rate: None,
             })
             .expect("manual account should be created");
 
@@ -4828,6 +4955,10 @@ mod tests {
                 exchange: ExchangeKind::Blofin,
                 wallet_balance: 500.0,
                 notes: None,
+                bonus_balance: None,
+                bonus_fee_deduction_rate: None,
+                bonus_loss_deduction_rate: None,
+                bonus_funding_deduction_rate: None,
             })
             .expect("manual account should be created");
         repo.upsert_exchange_markets(&[sample_blofin_eth_market(1600.0)])
@@ -4883,6 +5014,10 @@ mod tests {
                 exchange: ExchangeKind::Blofin,
                 wallet_balance: 800.0,
                 notes: None,
+                bonus_balance: None,
+                bonus_fee_deduction_rate: None,
+                bonus_loss_deduction_rate: None,
+                bonus_funding_deduction_rate: None,
             })
             .expect("manual account should be created");
         repo.upsert_exchange_markets(&[sample_blofin_eth_market(1700.0)])
@@ -4955,6 +5090,10 @@ mod tests {
                 exchange: ExchangeKind::Blofin,
                 wallet_balance: 800.0,
                 notes: None,
+                bonus_balance: None,
+                bonus_fee_deduction_rate: None,
+                bonus_loss_deduction_rate: None,
+                bonus_funding_deduction_rate: None,
             })
             .expect("manual account should be created");
         repo.upsert_exchange_markets(&[sample_blofin_eth_market(1500.0)])
@@ -5021,6 +5160,10 @@ mod tests {
                 exchange: ExchangeKind::Manual,
                 wallet_balance: 2000.0,
                 notes: None,
+                bonus_balance: None,
+                bonus_fee_deduction_rate: None,
+                bonus_loss_deduction_rate: None,
+                bonus_funding_deduction_rate: None,
             })
             .expect("manual account should be created");
 
@@ -5142,6 +5285,10 @@ mod tests {
                 exchange: ExchangeKind::Manual,
                 wallet_balance: 1500.0,
                 notes: None,
+                bonus_balance: None,
+                bonus_fee_deduction_rate: None,
+                bonus_loss_deduction_rate: None,
+                bonus_funding_deduction_rate: None,
             })
             .expect("manual account should be created");
 

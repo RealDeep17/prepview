@@ -70,6 +70,10 @@ export interface ExchangeAccount {
   syncError?: string | null;
   createdAt: string;
   lastSyncedAt?: string | null;
+  bonusBalance: number;
+  bonusFeeDeductionRate: number;
+  bonusLossDeductionRate: number;
+  bonusFundingDeductionRate: number;
 }
 
 export interface PortfolioPosition {
@@ -101,6 +105,7 @@ export interface PortfolioPosition {
 export interface PortfolioSummary {
   totalEquity: number;
   totalUnrealizedPnl: number;
+  totalBonusOffset: number;
   grossNotional: number;
   portfolioHeatPercent: number;
   openPositions: number;
@@ -120,6 +125,7 @@ export interface ExposureItem {
 export interface PerformanceMetrics {
   realizedPnl: number;
   unrealizedPnl: number;
+  totalBonusOffset: number;
   closedPositions: number;
   winRate: number;
   averageHoldHours: number;
@@ -207,6 +213,10 @@ export interface CreateAccountInput {
   exchange: ExchangeKind;
   walletBalance: number;
   notes?: string;
+  bonusBalance?: number;
+  bonusFeeDeductionRate?: number;
+  bonusLossDeductionRate?: number;
+  bonusFundingDeductionRate?: number;
 }
 
 export interface UpdateAccountInput {
@@ -214,6 +224,10 @@ export interface UpdateAccountInput {
   name: string;
   walletBalance?: number;
   notes?: string;
+  bonusBalance?: number;
+  bonusFeeDeductionRate?: number;
+  bonusLossDeductionRate?: number;
+  bonusFundingDeductionRate?: number;
 }
 
 export interface ManualPositionInput {

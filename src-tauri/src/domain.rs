@@ -108,6 +108,10 @@ pub struct ExchangeAccount {
     pub sync_error: Option<String>,
     pub created_at: DateTime<Utc>,
     pub last_synced_at: Option<DateTime<Utc>>,
+    pub bonus_balance: f64,
+    pub bonus_fee_deduction_rate: f64,
+    pub bonus_loss_deduction_rate: f64,
+    pub bonus_funding_deduction_rate: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -143,6 +147,7 @@ pub struct PortfolioPosition {
 pub struct PortfolioSummary {
     pub total_equity: f64,
     pub total_unrealized_pnl: f64,
+    pub total_bonus_offset: f64,
     pub gross_notional: f64,
     pub portfolio_heat_percent: f64,
     pub open_positions: usize,
@@ -166,6 +171,7 @@ pub struct ExposureItem {
 pub struct PerformanceMetrics {
     pub realized_pnl: f64,
     pub unrealized_pnl: f64,
+    pub total_bonus_offset: f64,
     pub closed_positions: usize,
     pub win_rate: f64,
     pub average_hold_hours: f64,
@@ -340,6 +346,10 @@ pub struct CreateAccountInput {
     pub exchange: ExchangeKind,
     pub wallet_balance: f64,
     pub notes: Option<String>,
+    pub bonus_balance: Option<f64>,
+    pub bonus_fee_deduction_rate: Option<f64>,
+    pub bonus_loss_deduction_rate: Option<f64>,
+    pub bonus_funding_deduction_rate: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -349,6 +359,10 @@ pub struct UpdateAccountInput {
     pub name: String,
     pub wallet_balance: Option<f64>,
     pub notes: Option<String>,
+    pub bonus_balance: Option<f64>,
+    pub bonus_fee_deduction_rate: Option<f64>,
+    pub bonus_loss_deduction_rate: Option<f64>,
+    pub bonus_funding_deduction_rate: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
