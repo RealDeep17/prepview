@@ -1,0 +1,42 @@
+{
+  "marginSummary": {
+    "accountValue": "1956.393779",
+    "totalNtlPos": "7028.0",
+    "totalRawUsd": "8984.393779",
+    "totalMarginUsed": "702.8"
+  },
+  "crossMarginSummary": {
+    "accountValue": "1956.393779",
+    "totalNtlPos": "7028.0",
+    "totalRawUsd": "8984.393779",
+    "totalMarginUsed": "702.8"
+  },
+  "crossMaintenanceMarginUsed": "351.4",
+  "withdrawable": "465.260446",
+  "assetPositions": [
+    {
+      "type": "oneWay",
+      "position": {
+        "coin": "HYPE",
+        "szi": "-200.0",
+        "leverage": {
+          "type": "cross",
+          "value": 10
+        },
+        "entryPx": "25.17",
+        "positionValue": "7028.0",
+        "unrealizedPnl": "-1993.980551",
+        "returnOnEquity": "-3.9610108209",
+        "liquidationPx": "55.5216572667",
+        "marginUsed": "702.8",
+        "maxLeverage": 10,
+        "cumFunding": {
+          "allTime": "305.939735",
+          "sinceOpen": "-161.757842",
+          "sinceChange": "-110.892881"
+        }
+      }
+    }
+  ],
+  "time": 1775147868632
+}

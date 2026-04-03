@@ -1,0 +1,23 @@
+[
+  [
+    "ADA",
+    [
+      [
+        "BinPerp",
+        {
+          "fundingRate": "-0.0000199",
+          "nextFundingTime": 1775174400000,
+          "fundingIntervalHours": 8
+        }
+      ],
+      [
+        "HlPerp",
+        {
+          "fundingRate": "0.0000014822",
+          "nextFundingTime": 1775145600000,
+          "fundingIntervalHours": 1
+        }
+      ]
+    ]
+  ]
+]
