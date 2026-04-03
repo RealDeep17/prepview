@@ -462,12 +462,14 @@ impl ExchangeConnector for HyperliquidConnector {
         let predicted = predicted_fundings.into_iter().find_map(|row| {
             if row.0.eq_ignore_ascii_case(&lookup_symbol) {
                 row.1.into_iter().find_map(|(venue, details)| {
-                    (venue == "HlPerp").then(|| {
-                        (
-                            parse_decimal(Some(details.funding_rate.as_str())),
-                            Some(millis_to_datetime(details.next_funding_time)),
-                        )
-                    })
+                    if venue == "HlPerp" {
+                        details.map(|d| (
+                            parse_decimal(Some(d.funding_rate.as_str())),
+                            Some(millis_to_datetime(d.next_funding_time)),
+                        ))
+                    } else {
+                        None
+                    }
                 })
             } else {
                 None
