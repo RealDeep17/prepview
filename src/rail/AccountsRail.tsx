@@ -6,6 +6,7 @@ export function AccountsRail() {
   const selectedAccountId = useAppStore((s) => s.selectedAccountId);
   const setSelectedAccountId = useAppStore((s) => s.setSelectedAccountId);
   const setScopeAccountId = useAppStore((s) => s.setScopeAccountId);
+  const openOverlay = useAppStore((s) => s.openOverlay);
   const state = useAppStore.getState();
 
   if (!bootstrap) return null;
@@ -41,6 +42,17 @@ export function AccountsRail() {
           >
             <div className="account-header">
               <span className="account-name">{account.name}</span>
+              <button
+                className="btn btn--ghost btn--small"
+                style={{ marginLeft: 'auto', marginRight: 4, padding: '2px 6px', fontSize: 9 }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedAccountId(account.id);
+                  openOverlay('edit-account');
+                }}
+              >
+                Edit
+              </button>
               <span className={exchangeTagClass(account.exchange)}>{account.exchange}</span>
             </div>
             <div className="account-metrics">

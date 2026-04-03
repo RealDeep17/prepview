@@ -11,7 +11,7 @@ export interface AppState {
   activeTab: 'positions' | 'exposure' | 'history' | 'journal' | 'closed';
   scopeExchange: ExchangeKind | 'all';
   scopeAccountId: string | null;
-  activeOverlay: 'add-account' | 'add-position' | 'edit-position' | 'csv-import' | null;
+  activeOverlay: 'add-account' | 'edit-account' | 'add-position' | 'edit-position' | 'csv-import' | null;
   editingPositionId: string | null;
   fetchBootstrap: () => Promise<void>;
   setScopeExchange: (exchange: ExchangeKind | 'all') => void;

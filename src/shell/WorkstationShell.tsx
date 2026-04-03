@@ -10,6 +10,7 @@ import { JournalPane } from '../panes/JournalPane';
 import { AddAccountOverlay } from '../overlays/AddAccountOverlay';
 import { AddPositionOverlay } from '../overlays/AddPositionOverlay';
 import { EditPositionOverlay } from '../overlays/EditPositionOverlay';
+import { EditAccountOverlay } from '../overlays/EditAccountOverlay';
 import { CsvImportOverlay } from '../overlays/CsvImportOverlay';
 
 const tabs = [
@@ -58,6 +59,7 @@ export function WorkstationShell() {
       </div>
 
       {activeOverlay === 'add-account' && <AddAccountOverlay />}
+      {activeOverlay === 'edit-account' && <EditAccountOverlay />}
       {activeOverlay === 'add-position' && <AddPositionOverlay />}
       {activeOverlay === 'edit-position' && <EditPositionOverlay />}
       {activeOverlay === 'csv-import' && <CsvImportOverlay />}

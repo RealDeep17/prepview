@@ -792,4 +792,91 @@ mod tests {
         let helper = account_sync_health_at(&accounts, &jobs, now);
         assert_eq!(helper.len(), 3);
     }
+
+    fn make_account(id: &str, bonus: f64, fee_rate: f64, loss_rate: f64, funding_rate: f64) -> ExchangeAccount {
+        ExchangeAccount {
+            id: id.into(),
+            name: format!("Account {}", id),
+            exchange: ExchangeKind::Blofin,
+            account_mode: AccountMode::Manual,
+            wallet_balance: 10000.0,
+            available_balance: 10000.0,
+            snapshot_equity: 10000.0,
+            currency: "USDT".into(),
+            external_reference: None,
+            notes: None,
+            sync_status: SyncStatus::Manual,
+            sync_error: None,
+            created_at: Utc::now(),
+            last_synced_at: None,
+            bonus_balance: bonus,
+            bonus_fee_deduction_rate: fee_rate,
+            bonus_loss_deduction_rate: loss_rate,
+            bonus_funding_deduction_rate: funding_rate,
+        }
+    }
+
+    fn make_position(account_id: &str, pnl: f64, fee: f64, funding: f64) -> PortfolioPosition {
+        PortfolioPosition {
+            id: format!("pos-{}", account_id),
+            account_id: account_id.into(),
+            account_name: format!("Account {}", account_id),
+            exchange: ExchangeKind::Blofin,
+            exchange_symbol: None,
+            margin_mode: None,
+            symbol: "BTCUSDT".into(),
+            side: PositionSide::Long,
+            quantity: 1.0,
+            entry_price: 50000.0,
+            mark_price: Some(50000.0 + pnl),
+            margin_used: Some(5000.0),
+            liquidation_price: None,
+            maintenance_margin: None,
+            maintenance_margin_rate: None,
+            risk_source: None,
+            leverage: 10.0,
+            unrealized_pnl: pnl,
+            realized_pnl: 0.0,
+            fee_paid: fee,
+            funding_paid: funding,
+            opened_at: Utc::now(),
+            notes: None,
+        }
+    }
+
+    #[test]
+    fn test_bonus_offset_blofin_defaults() {
+        // BloFin: 100% fee / 50% loss / 50% funding
+        let account = make_account("a", 500.0, 1.0, 0.5, 0.5);
+        // Position with $20 fee, $100 loss (unrealized_pnl = -100), $10 funding
+        let positions = vec![make_position("a", -100.0, 20.0, 10.0)];
+
+        let offset = super::compute_account_bonus_offset(&account, &positions);
+        // fee_offset = 20 * 1.0 = 20
+        // loss_offset = 100 * 0.5 = 50
+        // funding_offset = 10 * 0.5 = 5
+        // total = 75, capped at 500 → 75
+        assert!((offset - 75.0).abs() < 0.001, "expected 75.0, got {}", offset);
+    }
+
+    #[test]
+    fn test_bonus_offset_zero_when_no_bonus() {
+        let account = make_account("b", 0.0, 1.0, 0.5, 0.5);
+        let positions = vec![make_position("b", -200.0, 50.0, 30.0)];
+
+        let offset = super::compute_account_bonus_offset(&account, &positions);
+        assert_eq!(offset, 0.0, "should be zero when bonus_balance is 0");
+    }
+
+    #[test]
+    fn test_bonus_capped_at_balance() {
+        // Small bonus: only $10
+        let account = make_account("c", 10.0, 1.0, 0.5, 0.5);
+        // Position with $50 fee, $200 loss, $100 funding → desired = 50+100+50 = 200
+        let positions = vec![make_position("c", -200.0, 50.0, 100.0)];
+
+        let offset = super::compute_account_bonus_offset(&account, &positions);
+        // desired = 200, but capped at 10
+        assert!((offset - 10.0).abs() < 0.001, "expected 10.0 (capped), got {}", offset);
+    }
 }

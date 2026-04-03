@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
-import { useAppStore, selectedPosition, selectedAccount } from '../store/appStore';
-import { fmtCurrency, fmtPnl, fmtPnlClass, fmtPercent, fmtTimestamp, fmtRelativeTime, syncDotClass } from '../lib/fmt';
-import { deleteManualPosition, syncLiveAccount, setLanProjection } from '../lib/bridge';
+import { useAppStore, selectedPosition } from '../store/appStore';
+import { fmtCurrency, fmtPnl, fmtPnlClass, fmtPercent, fmtTimestamp, fmtRelativeTime } from '../lib/fmt';
+import { deleteManualPosition, syncLiveAccount, setLanProjection, configureLanProjection } from '../lib/bridge';
 
 export function DetailRail() {
   const bootstrap = useAppStore((s) => s.bootstrap);
@@ -9,7 +9,6 @@ export function DetailRail() {
   const fetchBootstrap = useAppStore((s) => s.fetchBootstrap);
   const state = useAppStore.getState();
   const position = selectedPosition(state);
-  const account = selectedAccount(state);
 
   if (!bootstrap) return null;
 
@@ -32,6 +31,11 @@ export function DetailRail() {
     await setLanProjection(!current);
     await fetchBootstrap();
   }, [bootstrap.lanStatus.enabled, fetchBootstrap]);
+
+  const handleLanExpose = useCallback(async () => {
+    await configureLanProjection(true, true);
+    await fetchBootstrap();
+  }, [fetchBootstrap]);
 
   // Position detail
   if (position) {
@@ -113,7 +117,7 @@ export function DetailRail() {
           </div>
         )}
 
-        <BottomPanels bootstrap={bootstrap} handleLanToggle={handleLanToggle} />
+        <BottomPanels bootstrap={bootstrap} handleLanToggle={handleLanToggle} handleLanExpose={handleLanExpose} />
       </>
     );
   }
@@ -130,7 +134,7 @@ export function DetailRail() {
         <DetailRow label="Total Bonus Offset" value={`+${fmtCurrency(bootstrap.performance.totalBonusOffset)}`} />
       )}
 
-      <BottomPanels bootstrap={bootstrap} handleLanToggle={handleLanToggle} />
+      <BottomPanels bootstrap={bootstrap} handleLanToggle={handleLanToggle} handleLanExpose={handleLanExpose} />
     </>
   );
 }
@@ -147,7 +151,7 @@ function DetailRow({ label, value, suffix }: { label: string; value: string; suf
   );
 }
 
-function BottomPanels({ bootstrap, handleLanToggle }: { bootstrap: NonNullable<ReturnType<typeof useAppStore.getState>['bootstrap']>; handleLanToggle: () => void }) {
+function BottomPanels({ bootstrap, handleLanToggle, handleLanExpose }: { bootstrap: NonNullable<ReturnType<typeof useAppStore.getState>['bootstrap']>; handleLanToggle: () => void; handleLanExpose: () => void }) {
   // Funding rates — deduplicate by symbol, show latest rate
   const fundingMap = new Map<string, number>();
   for (const entry of bootstrap.recentFundingEntries) {
@@ -206,10 +210,15 @@ function BottomPanels({ bootstrap, handleLanToggle }: { bootstrap: NonNullable<R
           {bootstrap.lanStatus.publicUrl}
         </div>
       )}
-      <div style={{ marginTop: 8 }}>
+      <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
         <button className="btn btn--ghost btn--small" onClick={handleLanToggle}>
           {bootstrap.lanStatus.enabled ? 'Disable' : 'Enable'} LAN
         </button>
+        {!bootstrap.lanStatus.publicUrl && bootstrap.lanStatus.enabled && (
+          <button className="btn btn--ghost btn--small" onClick={handleLanExpose}>
+            Expose to LAN
+          </button>
+        )}
       </div>
     </>
   );
