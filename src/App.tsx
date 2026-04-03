@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { useAppStore } from './store/appStore';
 import { WorkstationShell } from './shell/WorkstationShell';
+import { ContextMenuProvider } from './shell/ContextMenu';
 
 export default function App() {
   const fetchBootstrap = useAppStore((s) => s.fetchBootstrap);
@@ -34,5 +35,9 @@ export default function App() {
     );
   }
 
-  return <WorkstationShell />;
+  return (
+    <ContextMenuProvider>
+      <WorkstationShell />
+    </ContextMenuProvider>
+  );
 }

@@ -1,11 +1,49 @@
 import { useAppStore, scopedPositions } from '../store/appStore';
+import { useContextMenu } from '../shell/ContextMenu';
 import { fmtCurrency, fmtPnl, fmtPnlClass, fmtNumber } from '../lib/fmt';
+import { deleteManualPosition, syncLiveAccount } from '../lib/bridge';
 
 export function PositionsPane() {
   const state = useAppStore.getState();
   const selectedPositionId = useAppStore((s) => s.selectedPositionId);
   const setSelectedPositionId = useAppStore((s) => s.setSelectedPositionId);
+  const openOverlay = useAppStore((s) => s.openOverlay);
+  const fetchBootstrap = useAppStore((s) => s.fetchBootstrap);
   const positions = scopedPositions(state);
+  const { show: showCtx } = useContextMenu();
+
+  const handleContextMenu = (e: React.MouseEvent, posId: string, posSymbol: string, posExchange: string, posAccountId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSelectedPositionId(posId);
+
+    const isManual = posExchange === 'manual' || posExchange === 'import';
+    const items = [];
+
+    if (isManual) {
+      items.push(
+        { label: 'Edit Position', action: () => openOverlay('edit-position', posId) },
+        { label: 'Close Position', action: () => openOverlay('edit-position', posId) },
+        { label: 'Delete Position', action: async () => {
+          if (confirm(`Delete position ${posSymbol}?`)) {
+            await deleteManualPosition(posId);
+            setSelectedPositionId(null);
+            await fetchBootstrap();
+          }
+        }, danger: true },
+      );
+    } else {
+      items.push(
+        { label: 'Sync Account', action: async () => { await syncLiveAccount(posAccountId); await fetchBootstrap(); } },
+      );
+    }
+
+    items.push(
+      { label: 'Add Position', action: () => openOverlay('add-position') },
+    );
+
+    showCtx(e.clientX, e.clientY, items, posSymbol);
+  };
 
   if (positions.length === 0) {
     return (
@@ -42,6 +80,7 @@ export function PositionsPane() {
               key={pos.id}
               className={selectedPositionId === pos.id ? 'row--selected' : ''}
               onClick={() => setSelectedPositionId(pos.id)}
+              onContextMenu={(e) => handleContextMenu(e, pos.id, pos.symbol, pos.exchange, pos.accountId)}
             >
               <td>
                 <span className="mono" style={{ fontWeight: 600 }}>{pos.symbol}</span>

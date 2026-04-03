@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAppStore } from '../store/appStore';
 import { syncAllLiveAccounts, refreshPortfolioQuotes } from '../lib/bridge';
-import { syncDotClass } from '../lib/fmt';
 import type { ExchangeKind } from '../lib/types';
+
+const ZOOM_LEVELS = [0.75, 0.85, 1] as const;
 
 export function TopBar() {
   const bootstrap = useAppStore((s) => s.bootstrap);
@@ -11,6 +12,7 @@ export function TopBar() {
   const openOverlay = useAppStore((s) => s.openOverlay);
   const fetchBootstrap = useAppStore((s) => s.fetchBootstrap);
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [zoom, setZoom] = useState(1);
 
   const sync = bootstrap?.syncHealthSummary;
   const autoSync = bootstrap?.autoSyncStatus;
@@ -25,6 +27,11 @@ export function TopBar() {
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [autoSync?.nextScheduledAt]);
+
+  const handleZoom = useCallback((level: number) => {
+    setZoom(level);
+    document.documentElement.style.setProperty('--app-zoom', String(level));
+  }, []);
 
   const uniqueExchanges = Array.from(new Set(bootstrap?.accounts.map((a) => a.exchange) ?? []));
 
@@ -69,6 +76,19 @@ export function TopBar() {
         ))}
       </div>
       <span className="topbar-spacer" />
+
+      <div className="zoom-toggle">
+        {ZOOM_LEVELS.map((level) => (
+          <button
+            key={level}
+            className={`zoom-opt${zoom === level ? ' zoom-opt--active' : ''}`}
+            onClick={() => handleZoom(level)}
+          >
+            {Math.round(level * 100)}%
+          </button>
+        ))}
+      </div>
+
       <div className="sync-badge" onClick={handleSyncAll} style={{ cursor: 'pointer' }} title="Click to sync all">
         <span className={`sync-dot ${dotClass}`} />
         <span>{sync?.label ?? 'local'}</span>

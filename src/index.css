@@ -6,7 +6,7 @@
 
 /* --- Reset & Scale ----------------------------------------- */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { zoom: 0.75; }
+html { zoom: var(--app-zoom, 1); }
 html, body { height: 100%; overflow: hidden; }
 
 body {
@@ -667,3 +667,86 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: hsla(0, 0%, 100%, 0.08); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: hsla(0, 0%, 100%, 0.14); }
+
+/* --- Context Menu ---------------------------------------- */
+.ctx-menu {
+  position: fixed;
+  z-index: 200;
+  min-width: 180px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 0;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  animation: fadeIn 0.1s ease-out;
+}
+.ctx-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  font-size: 12px;
+  color: var(--text-bright);
+  cursor: pointer;
+  transition: background 0.08s;
+}
+.ctx-item:hover { background: var(--bg-hover); }
+.ctx-item--danger { color: var(--red); }
+.ctx-item--danger:hover { background: var(--red-dim); }
+.ctx-sep { height: 1px; background: var(--border); margin: 4px 0; }
+.ctx-label { font-size: 10px; color: var(--text-muted); padding: 6px 14px 2px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+
+/* --- Zoom Toggle ----------------------------------------- */
+.zoom-toggle {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px;
+}
+.zoom-opt {
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 4px;
+  transition: all 0.12s;
+}
+.zoom-opt:hover { color: var(--text-bright); }
+.zoom-opt--active {
+  background: var(--accent-glow);
+  color: var(--accent);
+}
+
+/* --- Symbol Autocomplete --------------------------------- */
+.symbol-ac-wrap { position: relative; }
+.symbol-ac-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 0 0 6px 6px;
+  animation: fadeIn 0.08s ease-out;
+}
+.symbol-ac-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.08s;
+}
+.symbol-ac-item:hover, .symbol-ac-item--highlight { background: var(--bg-hover); }
+.symbol-ac-item .mark { font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); }
+.symbol-ac-empty { padding: 10px; font-size: 11px; color: var(--text-muted); text-align: center; }

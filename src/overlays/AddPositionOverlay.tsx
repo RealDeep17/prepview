@@ -1,7 +1,8 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useAppStore } from '../store/appStore';
-import { addManualPosition } from '../lib/bridge';
-import type { ExchangeKind, PositionSide, MarginMode } from '../lib/types';
+import { addManualPosition, getExchangeMarkets, getExchangeMarketQuote } from '../lib/bridge';
+import { fmtCurrency } from '../lib/fmt';
+import type { ExchangeKind, ExchangeMarket, PositionSide, MarginMode } from '../lib/types';
 
 export function AddPositionOverlay() {
   const closeOverlay = useAppStore((s) => s.closeOverlay);
@@ -11,8 +12,9 @@ export function AddPositionOverlay() {
   const manualAccounts = (bootstrap?.accounts ?? []).filter(
     (a) => a.accountMode === 'manual' || a.accountMode === 'import'
   );
+  const allAccounts = bootstrap?.accounts ?? [];
 
-  const [accountId, setAccountId] = useState(manualAccounts[0]?.id ?? '');
+  const [accountId, setAccountId] = useState(allAccounts[0]?.id ?? '');
   const [symbol, setSymbol] = useState('');
   const [exchangeSymbol, setExchangeSymbol] = useState('');
   const [side, setSide] = useState<PositionSide>('long');
@@ -30,8 +32,77 @@ export function AddPositionOverlay() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const selectedAccount = manualAccounts.find((a) => a.id === accountId);
+  // Autocomplete state
+  const [markets, setMarkets] = useState<ExchangeMarket[]>([]);
+  const [loadingMarkets, setLoadingMarkets] = useState(false);
+  const [showAc, setShowAc] = useState(false);
+  const [highlightIdx, setHighlightIdx] = useState(0);
+  const acRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const selectedAccount = allAccounts.find((a) => a.id === accountId);
   const exchange: ExchangeKind = selectedAccount?.exchange ?? 'manual';
+  const isLive = exchange === 'blofin' || exchange === 'hyperliquid';
+
+  // Fetch markets when account changes to a live exchange
+  useEffect(() => {
+    if (!isLive) { setMarkets([]); return; }
+    let cancelled = false;
+    setLoadingMarkets(true);
+    getExchangeMarkets(exchange as 'blofin' | 'hyperliquid')
+      .then((data) => { if (!cancelled) setMarkets(data); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoadingMarkets(false); });
+    return () => { cancelled = true; };
+  }, [exchange, isLive]);
+
+  // Filter markets as user types
+  const query = symbol.toUpperCase();
+  const filteredMarkets = query.length >= 1
+    ? markets.filter((m) =>
+        m.symbol.toUpperCase().includes(query) ||
+        m.exchangeSymbol.toUpperCase().includes(query) ||
+        m.baseAsset.toUpperCase().includes(query)
+      ).slice(0, 20)
+    : [];
+
+  const handleSelectMarket = useCallback((market: ExchangeMarket) => {
+    setSymbol(market.symbol);
+    setExchangeSymbol(market.exchangeSymbol);
+    setShowAc(false);
+    if (market.markPrice != null) {
+      setMarkPrice(String(market.markPrice));
+      setEntryPrice(String(market.markPrice));
+    }
+    if (market.maxLeverage != null) {
+      setLeverage(String(Math.min(market.maxLeverage, parseFloat(leverage) || 1)));
+    }
+    // Also fetch live quote
+    getExchangeMarketQuote(exchange as 'blofin' | 'hyperliquid', market.exchangeSymbol)
+      .then((quote) => {
+        if (quote.markPrice != null) {
+          setMarkPrice(String(quote.markPrice));
+          if (!entryPrice) setEntryPrice(String(quote.markPrice));
+        }
+      })
+      .catch(() => {});
+  }, [exchange, leverage, entryPrice]);
+
+  const handleSymbolKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (!showAc || filteredMarkets.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightIdx((i) => Math.min(i + 1, filteredMarkets.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightIdx((i) => Math.max(i - 1, 0));
+    } else if (e.key === 'Enter' && filteredMarkets[highlightIdx]) {
+      e.preventDefault();
+      handleSelectMarket(filteredMarkets[highlightIdx]);
+    } else if (e.key === 'Escape') {
+      setShowAc(false);
+    }
+  }, [showAc, filteredMarkets, highlightIdx, handleSelectMarket]);
 
   const handleSubmit = useCallback(async () => {
     if (!symbol.trim()) { setError('Symbol is required'); return; }
@@ -78,21 +149,63 @@ export function AddPositionOverlay() {
         <div className="form-group">
           <label className="form-label">Account</label>
           <select className="form-select" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-            {manualAccounts.map((a) => (
+            {allAccounts.map((a) => (
               <option key={a.id} value={a.id}>{a.name} ({a.exchange})</option>
             ))}
           </select>
-          {manualAccounts.length === 0 && <div className="form-hint">Create a manual account first</div>}
         </div>
 
         <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">Symbol</label>
-            <input className="form-input" value={symbol} onChange={(e) => setSymbol(e.target.value)} placeholder="BTC-PERP" />
+          <div className="form-group" style={{ flex: 2 }}>
+            <label className="form-label">
+              Symbol
+              {isLive && loadingMarkets && <span style={{ color: 'var(--text-muted)', marginLeft: 6 }}>loading markets…</span>}
+              {isLive && !loadingMarkets && markets.length > 0 && (
+                <span style={{ color: 'var(--accent)', marginLeft: 6 }}>{markets.length} pairs</span>
+              )}
+            </label>
+            <div className="symbol-ac-wrap" ref={acRef}>
+              <input
+                ref={inputRef}
+                className="form-input"
+                value={symbol}
+                onChange={(e) => {
+                  setSymbol(e.target.value);
+                  setShowAc(true);
+                  setHighlightIdx(0);
+                }}
+                onFocus={() => { if (filteredMarkets.length > 0) setShowAc(true); }}
+                onKeyDown={handleSymbolKeyDown}
+                placeholder={isLive ? 'Type to search…' : 'BTC-PERP'}
+                autoComplete="off"
+              />
+              {showAc && symbol.length >= 1 && isLive && (
+                <div className="symbol-ac-list">
+                  {filteredMarkets.length > 0 ? filteredMarkets.map((m, i) => (
+                    <div
+                      key={m.exchangeSymbol}
+                      className={`symbol-ac-item${i === highlightIdx ? ' symbol-ac-item--highlight' : ''}`}
+                      onMouseEnter={() => setHighlightIdx(i)}
+                      onClick={() => handleSelectMarket(m)}
+                    >
+                      <span>
+                        <strong>{m.symbol}</strong>
+                        <span style={{ marginLeft: 6, color: 'var(--text-muted)', fontSize: 10 }}>{m.exchangeSymbol}</span>
+                      </span>
+                      <span className="mark">{m.markPrice != null ? fmtCurrency(m.markPrice) : '—'}</span>
+                    </div>
+                  )) : (
+                    <div className="symbol-ac-empty">
+                      {loadingMarkets ? 'Loading…' : `No markets matching "${symbol}"`}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
-          <div className="form-group">
+          <div className="form-group" style={{ flex: 1 }}>
             <label className="form-label">Exchange Symbol</label>
-            <input className="form-input" value={exchangeSymbol} onChange={(e) => setExchangeSymbol(e.target.value)} placeholder="Optional" />
+            <input className="form-input" value={exchangeSymbol} onChange={(e) => setExchangeSymbol(e.target.value)} placeholder="Auto" />
           </div>
         </div>
 
