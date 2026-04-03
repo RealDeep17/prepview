@@ -1,8 +1,10 @@
+
 import { useAppStore } from '../store/appStore';
 import { TopBar } from './TopBar';
 import { AccountsRail } from '../rail/AccountsRail';
 import { DetailRail } from '../rail/DetailRail';
 import { SummaryStrip } from '../metrics/SummaryStrip';
+import { ChartDrawer } from '../metrics/ChartDrawer';
 import { PositionsPane } from '../panes/PositionsPane';
 import { ExposurePane } from '../panes/ExposurePane';
 import { HistoryPane } from '../panes/HistoryPane';
@@ -22,47 +24,66 @@ const tabs = [
 ];
 
 export function WorkstationShell() {
-  const activeTab = useAppStore((s) => s.activeTab);
-  const setActiveTab = useAppStore((s) => s.setActiveTab);
-  const activeOverlay = useAppStore((s) => s.activeOverlay);
+  const activeTab      = useAppStore((s) => s.activeTab);
+  const setActiveTab   = useAppStore((s) => s.setActiveTab);
+  const activeOverlay  = useAppStore((s) => s.activeOverlay);
+  const leftPanelOpen  = useAppStore((s) => s.leftPanelOpen);
+  const rightPanelOpen = useAppStore((s) => s.rightPanelOpen);
 
   return (
     <>
       <div className="shell">
         <TopBar />
-        <div className="left-rail">
-          <AccountsRail />
-        </div>
-        <div className="center-pane">
-          <SummaryStrip />
-          <div className="tab-bar">
-            {tabs.map((tab) => (
-              <div
-                key={tab.key}
-                className={`tab-item${activeTab === tab.key ? ' tab-item--active' : ''}`}
-                onClick={() => setActiveTab(tab.key)}
-              >
-                {tab.label}
-              </div>
-            ))}
+
+        <div className="shell-body">
+
+          {/* ── Left Rail ───────────────────────────── */}
+          <div className={`shell-left-rail${leftPanelOpen ? '' : ' collapsed'}`}>
+            <div className="rail-inner">
+              <AccountsRail />
+            </div>
           </div>
-          <div className="table-wrap">
-            {activeTab === 'positions' && <PositionsPane />}
-            {activeTab === 'exposure' && <ExposurePane />}
-            {activeTab === 'history' && <HistoryPane />}
-            {(activeTab === 'journal' || activeTab === 'closed') && <JournalPane showClosed={activeTab === 'closed'} />}
+
+          {/* ── Center ──────────────────────────────── */}
+          <div className="shell-center">
+            <SummaryStrip />
+            <div className="tab-bar">
+              {tabs.map((tab) => (
+                <div
+                  key={tab.key}
+                  className={`tab-item${activeTab === tab.key ? ' tab-item--active' : ''}`}
+                  onClick={() => setActiveTab(tab.key)}
+                >
+                  {tab.label}
+                </div>
+              ))}
+            </div>
+            <div className="table-wrap">
+              {activeTab === 'positions'  && <PositionsPane />}
+              {activeTab === 'exposure'   && <ExposurePane />}
+              {activeTab === 'history'    && <HistoryPane />}
+              {(activeTab === 'journal' || activeTab === 'closed') && (
+                <JournalPane showClosed={activeTab === 'closed'} />
+              )}
+            </div>
+            <ChartDrawer />
           </div>
-        </div>
-        <div className="right-rail">
-          <DetailRail />
+
+          {/* ── Right Rail ──────────────────────────── */}
+          <div className={`shell-right-rail${rightPanelOpen ? '' : ' collapsed'}`}>
+            <div className="rail-inner rail-inner--right">
+              <DetailRail />
+            </div>
+          </div>
+
         </div>
       </div>
 
-      {activeOverlay === 'add-account' && <AddAccountOverlay />}
-      {activeOverlay === 'edit-account' && <EditAccountOverlay />}
-      {activeOverlay === 'add-position' && <AddPositionOverlay />}
+      {activeOverlay === 'add-account'   && <AddAccountOverlay />}
+      {activeOverlay === 'edit-account'  && <EditAccountOverlay />}
+      {activeOverlay === 'add-position'  && <AddPositionOverlay />}
       {activeOverlay === 'edit-position' && <EditPositionOverlay />}
-      {activeOverlay === 'csv-import' && <CsvImportOverlay />}
+      {activeOverlay === 'csv-import'    && <CsvImportOverlay />}
     </>
   );
 }

@@ -70,14 +70,51 @@ body {
 .shell {
   display: grid;
   grid-template-rows: var(--topbar-height) 1fr;
-  grid-template-columns: var(--rail-left-width) 1fr var(--rail-right-width);
+  grid-template-columns: 1fr;
   height: 100vh;
   gap: 0;
 }
 
-/* --- TopBar ----------------------------------------------- */
+/* Topbar still spans the full width */
 .topbar {
   grid-column: 1 / -1;
+}
+
+/* Content row: left, divider, center, divider, right */
+.shell-body {
+  display: flex;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.shell-left-rail {
+  width: var(--rail-left-width);
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: width 0.18s ease;
+  background: var(--bg-surface);
+}
+.shell-left-rail.collapsed { width: 0; }
+
+.shell-right-rail {
+  width: var(--rail-right-width);
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: width 0.18s ease;
+  background: var(--bg-surface);
+}
+.shell-right-rail.collapsed { width: 0; }
+
+.shell-center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* --- TopBar ----------------------------------------------- */
+.topbar {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -129,6 +166,36 @@ body {
   border-radius: 6px;
   background: var(--bg-raised);
 }
+
+.layout-toggles {
+  display: flex;
+  gap: 2px;
+  margin-right: 4px;
+}
+.layout-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.12s;
+  padding: 0;
+}
+.layout-toggle-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-bright);
+}
+.layout-toggle-btn.active {
+  color: var(--text-bright);
+  background: rgba(255, 255, 255, 0.04);
+}
+.layout-toggle-btn svg { width: 16px; height: 14px; }
+
 
 .btn {
   padding: 6px 12px;
@@ -219,11 +286,107 @@ body {
   margin-top: 4px;
 }
 
+.account-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.account-card:hover .account-actions { opacity: 1; }
+.account-card--selected .account-actions { opacity: 1; }
+.acct-action-btn {
+  flex: 1;
+  background: rgba(255,255,255,0.05);
+  border: none;
+  border-radius: 3px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  padding: 3px 6px;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+.acct-action-btn:hover {
+  background: rgba(255,255,255,0.12);
+  color: var(--text-bright);
+}
+
+/* Rail inner scroll wrapper */
+.rail-inner {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px 0;
+}
+.rail-inner--right { padding: 12px; }
+
 /* --- Center Pane ------------------------------------------ */
 .center-pane {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-width: 0;
+}
+
+/* --- Chart Drawer ----------------------------------------- */
+.chart-drawer {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border);
+  background: var(--bg-surface);
+  overflow: hidden;
+  transition: height 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.chart-handle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  height: 28px;
+  cursor: row-resize;
+  flex-shrink: 0;
+  user-select: none;
+  gap: 12px;
+}
+.chart-handle:hover { background: var(--bg-hover); }
+.chart-handle-grip {
+  width: 32px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--border);
+  margin: auto;
+  flex-shrink: 0;
+}
+.chart-handle-title {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+}
+.chart-tab-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  padding: 0 12px;
+  flex-shrink: 0;
+}
+.chart-tab {
+  font-size: 10px;
+  padding: 4px 10px;
+  cursor: pointer;
+  color: var(--text-muted);
+  border-bottom: 2px solid transparent;
+  transition: color 0.12s, border-color 0.12s;
+}
+.chart-tab--active { color: var(--text-bright); border-bottom-color: var(--accent); }
+.chart-canvas-wrap {
+  flex: 1;
+  min-height: 0;
+  padding: 8px 12px;
+  position: relative;
 }
 
 /* Summary Strip */
@@ -529,10 +692,39 @@ body {
 .overlay-title {
   font-size: 16px;
   font-weight: 600;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
-/* Form fields */
+/* ─── Chart Tab Bar ──────────────────────────────────────── */
+.chart-tab-bar {
+  display: inline-flex;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  padding: 2px;
+}
+.chart-tab {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  padding: 4px 10px;
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+.chart-tab:hover {
+  color: var(--text-bright);
+}
+.chart-tab--active {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-bright);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* ─── Add Menu ───────────────────────────────────────────── */
 .form-group { margin-bottom: 14px; }
 .form-label {
   display: block;

@@ -428,6 +428,20 @@ pub fn get_closed_trades(
     command_result(repository.query_closed_trades(input))
 }
 
+#[tauri::command]
+pub fn reset_database(state: State<'_, Arc<AppServices>>) -> Result<(), String> {
+    let result = {
+        let repository = state
+            .repository
+            .lock()
+            .map_err(|_| AppError::StatePoisoned("repository").to_string())?;
+        repository.reset_database()
+    };
+    let _ = command_result(result)?;
+    let _ = state.emit_snapshot();
+    Ok(())
+}
+
 struct SyncPayload {
     snapshot: crate::domain::AccountSnapshot,
     positions: Vec<crate::domain::SyncedPosition>,

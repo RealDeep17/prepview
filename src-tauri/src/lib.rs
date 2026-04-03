@@ -21,7 +21,7 @@ use commands::{
     add_manual_position, close_manual_position, create_account, create_live_account,
     delete_account, delete_manual_position, get_bootstrap_state, get_closed_trades,
     get_exchange_market_quote, get_exchange_markets, get_position_events, import_csv_positions,
-    refresh_portfolio_quotes, set_lan_projection, sync_all_live_accounts, sync_live_account,
+    refresh_portfolio_quotes, reset_database, set_lan_projection, sync_all_live_accounts, sync_live_account,
     update_account, update_manual_position, validate_live_account,
 };
 use domain::{AutoSyncStatus, BootstrapState};
@@ -285,7 +285,8 @@ pub fn run() {
             refresh_portfolio_quotes,
             get_position_events,
             get_closed_trades,
-            set_lan_projection
+            set_lan_projection,
+            reset_database
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

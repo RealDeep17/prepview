@@ -16,6 +16,9 @@ export function AddPositionOverlay() {
   const [exchangeSymbol, setExchangeSymbol] = useState('');
   const [side, setSide] = useState<PositionSide>('long');
   const [marginMode, setMarginMode] = useState<MarginMode | ''>('cross');
+  
+  type QuantityMode = 'contract' | 'token' | 'usd';
+  const [quantityMode, setQuantityMode] = useState<QuantityMode>('token');
   const [quantity, setQuantity] = useState('');
   const [entryPrice, setEntryPrice] = useState('');
   const [markPrice, setMarkPrice] = useState('');
@@ -109,6 +112,22 @@ export function AddPositionOverlay() {
     if (!entryPrice || parseFloat(entryPrice) <= 0) { setError('Entry price must be > 0'); return; }
     if (!accountId) { setError('Select an account'); return; }
 
+    let rawQuantity = parseFloat(quantity);
+    if (!isNaN(rawQuantity)) {
+      const market = markets.find(
+        (m) => m.symbol.toUpperCase() === symbol.trim().toUpperCase() && m.exchange.toLowerCase() === exchange.toLowerCase()
+      );
+      const faceValue = market?.contractValue ?? 1.0;
+      if (quantityMode === 'token') {
+        rawQuantity = rawQuantity / faceValue;
+      } else if (quantityMode === 'usd') {
+        const entryPx = parseFloat(entryPrice) || 1.0;
+        if (entryPx > 0 && faceValue > 0) {
+          rawQuantity = rawQuantity / (entryPx * faceValue);
+        }
+      }
+    }
+
     setSubmitting(true);
     setError('');
     try {
@@ -119,7 +138,7 @@ export function AddPositionOverlay() {
         symbol: symbol.trim().toUpperCase(),
         marginMode: marginMode || null,
         side,
-        quantity: parseFloat(quantity),
+        quantity: rawQuantity,
         entryPrice: parseFloat(entryPrice),
         markPrice: markPrice ? parseFloat(markPrice) : undefined,
         leverage: parseFloat(leverage) || 1,
@@ -234,9 +253,28 @@ export function AddPositionOverlay() {
         </div>
 
         <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">Quantity</label>
-            <input className="form-input" type="number" step="any" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+          <div className="form-group" style={{ position: 'relative' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <label className="form-label" style={{ marginBottom: 0 }}>Quantity</label>
+              <div className="form-toggle form-toggle--pill" style={{ display: 'inline-flex', padding: 2, background: 'rgba(255,255,255,0.05)', borderRadius: 4 }}>
+                <button 
+                  type="button"
+                  style={{ fontSize: 10, padding: '2px 6px', background: quantityMode === 'token' ? 'rgba(255,255,255,0.1)' : 'transparent', color: quantityMode === 'token' ? '#fff' : 'var(--text-muted)', border: 'none', borderRadius: 2, cursor: 'pointer' }}
+                  onClick={() => setQuantityMode('token')}
+                >Token</button>
+                <button 
+                  type="button"
+                  style={{ fontSize: 10, padding: '2px 6px', background: quantityMode === 'usd' ? 'rgba(255,255,255,0.1)' : 'transparent', color: quantityMode === 'usd' ? '#fff' : 'var(--text-muted)', border: 'none', borderRadius: 2, cursor: 'pointer' }}
+                  onClick={() => setQuantityMode('usd')}
+                >USD</button>
+                <button 
+                  type="button"
+                  style={{ fontSize: 10, padding: '2px 6px', background: quantityMode === 'contract' ? 'rgba(255,255,255,0.1)' : 'transparent', color: quantityMode === 'contract' ? '#fff' : 'var(--text-muted)', border: 'none', borderRadius: 2, cursor: 'pointer' }}
+                  onClick={() => setQuantityMode('contract')}
+                >Cont</button>
+              </div>
+            </div>
+            <input className="form-input" type="number" step="any" value={quantity} onChange={(e) => setQuantity(e.target.value)} placeholder={quantityMode === 'contract' ? 'Contracts' : (quantityMode === 'usd' ? 'Total $' : 'Base Asset')} />
           </div>
           <div className="form-group">
             <label className="form-label">Entry Price</label>

@@ -132,12 +132,12 @@ export async function refreshPortfolioQuotes() {
   return invoke<QuoteRefreshResult>('refresh_portfolio_quotes');
 }
 
-export async function setLanProjection(enabled: boolean) {
+export async function setLanProjection(enabled: boolean, exposeToLan?: boolean): Promise<LanStatus> {
   assertTauri();
-  return invoke<LanStatus>('set_lan_projection', { enabled });
+  return invoke('set_lan_projection', { enabled, exposeToLan });
 }
 
-export async function configureLanProjection(enabled: boolean, exposeToLan?: boolean) {
+export async function resetDatabase(): Promise<void> {
   assertTauri();
-  return invoke<LanStatus>('set_lan_projection', { enabled, exposeToLan });
+  return invoke('reset_database');
 }

@@ -7,8 +7,7 @@ export function DetailRail() {
   const bootstrap = useAppStore((s) => s.bootstrap);
   const openOverlay = useAppStore((s) => s.openOverlay);
   const fetchBootstrap = useAppStore((s) => s.fetchBootstrap);
-  const state = useAppStore.getState();
-  const position = selectedPosition(state);
+  const position = useAppStore(selectedPosition);
 
   if (!bootstrap) return null;
 
@@ -50,7 +49,8 @@ export function DetailRail() {
     }
     const market = bootstrap.markets.find((m) => m.symbol.toUpperCase() === position.symbol.toUpperCase() && m.exchange.toLowerCase() === position.exchange.toLowerCase());
     const faceValue = market?.contractValue ?? 1.0;
-    const notional = (position.markPrice ?? position.entryPrice) * position.quantity * faceValue;
+    const tokenSize = position.quantity * faceValue;
+    const notional = (position.markPrice ?? position.entryPrice) * tokenSize;
 
     return (
       <>
@@ -70,7 +70,7 @@ export function DetailRail() {
           value={position.liquidationPrice != null ? fmtCurrency(position.liquidationPrice) : '—'}
           suffix={position.riskSource === 'local_engine' ? 'est.' : position.riskSource === 'user_input' ? 'manual' : undefined}
         />
-        <DetailRow label="Size" value={`${position.quantity}`} />
+        <DetailRow label="Size" value={`${tokenSize % 1 === 0 ? tokenSize.toFixed(0) : tokenSize.toPrecision(6).replace(/\.?0+$/, '')}`} suffix={market?.baseAsset} />
         <DetailRow label="Notional" value={fmtCurrency(notional)} />
         <DetailRow label="Leverage" value={`${position.leverage}×`} />
         {position.marginMode && <DetailRow label="Margin Mode" value={position.marginMode} />}

@@ -13,6 +13,10 @@ export interface AppState {
   scopeAccountId: string | null;
   activeOverlay: 'add-account' | 'edit-account' | 'add-position' | 'edit-position' | 'csv-import' | null;
   editingPositionId: string | null;
+  // Layout panel visibility
+  leftPanelOpen: boolean;
+  rightPanelOpen: boolean;
+  chartOpen: boolean;
   fetchBootstrap: () => Promise<void>;
   setScopeExchange: (exchange: ExchangeKind | 'all') => void;
   setScopeAccountId: (id: string | null) => void;
@@ -21,6 +25,9 @@ export interface AppState {
   setActiveTab: (tab: AppState['activeTab']) => void;
   openOverlay: (overlay: AppState['activeOverlay'], positionId?: string) => void;
   closeOverlay: () => void;
+  toggleLeftPanel: () => void;
+  toggleRightPanel: () => void;
+  toggleChart: () => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -34,6 +41,9 @@ export const useAppStore = create<AppState>((set) => ({
   scopeAccountId: null,
   activeOverlay: null,
   editingPositionId: null,
+  leftPanelOpen:  localStorage.getItem('cassini.lo') !== 'false',
+  rightPanelOpen: localStorage.getItem('cassini.ro') !== 'false',
+  chartOpen:      localStorage.getItem('cassini.co') === 'true',
 
   fetchBootstrap: async () => {
     set((state) => ({
@@ -58,6 +68,15 @@ export const useAppStore = create<AppState>((set) => ({
     editingPositionId: positionId ?? null,
   }),
   closeOverlay: () => set({ activeOverlay: null, editingPositionId: null }),
+  toggleLeftPanel: () => set((s) => {
+    const v = !s.leftPanelOpen; localStorage.setItem('cassini.lo', String(v)); return { leftPanelOpen: v };
+  }),
+  toggleRightPanel: () => set((s) => {
+    const v = !s.rightPanelOpen; localStorage.setItem('cassini.ro', String(v)); return { rightPanelOpen: v };
+  }),
+  toggleChart: () => set((s) => {
+    const v = !s.chartOpen; localStorage.setItem('cassini.co', String(v)); return { chartOpen: v };
+  }),
 }));
 
 export function scopedAccounts(state: AppState): ExchangeAccount[] {

@@ -55,7 +55,7 @@ export function JournalPane({ showClosed }: Props) {
               <th>Symbol</th>
               <th>Account</th>
               <th>Side</th>
-              <th className="num">Qty</th>
+              <th className="num">Size</th>
               <th className="num">Entry</th>
               <th className="num">Exit</th>
               <th className="num">Lev</th>
@@ -75,7 +75,12 @@ export function JournalPane({ showClosed }: Props) {
                     {trade.side === 'long' ? 'Long' : 'Short'}
                   </span>
                 </td>
-                <td className="num">{fmtNumber(trade.quantity, 4)}</td>
+                <td className="num">
+                  {fmtNumber(
+                    trade.quantity * (bootstrap.markets.find((m) => m.symbol.toUpperCase() === trade.symbol.toUpperCase() && m.exchange.toLowerCase() === trade.exchange.toLowerCase())?.contractValue ?? 1.0),
+                    4
+                  )}
+                </td>
                 <td className="num">{fmtCurrency(trade.entryPrice)}</td>
                 <td className="num">{fmtCurrency(trade.exitPrice)}</td>
                 <td className="num">{trade.leverage}×</td>
@@ -114,7 +119,7 @@ export function JournalPane({ showClosed }: Props) {
             <th>Symbol</th>
             <th>Account</th>
             <th>Side</th>
-            <th className="num">Qty</th>
+            <th className="num">Size</th>
             <th className="num">Entry</th>
             <th className="num">Mark</th>
             <th className="num">P&amp;L</th>
@@ -136,11 +141,16 @@ export function JournalPane({ showClosed }: Props) {
                   {event.side === 'long' ? 'L' : 'S'}
                 </span>
               </td>
-              <td className="num">{fmtNumber(event.quantity, 4)}</td>
+              <td className="num">
+                {fmtNumber(
+                  event.quantity * (bootstrap.markets.find((m) => m.symbol.toUpperCase() === event.symbol.toUpperCase() && m.exchange.toLowerCase() === event.exchange.toLowerCase())?.contractValue ?? 1.0),
+                  4
+                )}
+              </td>
               <td className="num">{fmtCurrency(event.entryPrice)}</td>
               <td className="num">{event.markPrice != null ? fmtCurrency(event.markPrice) : '—'}</td>
-              <td className={`num ${fmtPnlClass(event.unrealizedPnl)}`}>
-                {fmtPnl(event.unrealizedPnl)}
+              <td className={`num ${fmtPnlClass(event.eventKind === 'closed' ? event.realizedPnl : event.unrealizedPnl)}`}>
+                {fmtPnl(event.eventKind === 'closed' ? event.realizedPnl : event.unrealizedPnl)}
               </td>
             </tr>
           ))}

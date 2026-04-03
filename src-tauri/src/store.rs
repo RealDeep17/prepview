@@ -826,6 +826,7 @@ impl PortfolioRepository {
             None,
             Some("Manual position adjusted".into()),
         ))?;
+        self.snapshot_manual_account_equity(&target_account.id).ok();
         self.record_snapshot("manual_position_update".into())?;
         Ok(updated)
     }
@@ -850,6 +851,7 @@ impl PortfolioRepository {
         self.connection
             .execute("DELETE FROM positions WHERE id = ?1", params![position_id])?;
         self.recalculate_non_live_account_risk(&account.id)?;
+        self.snapshot_manual_account_equity(&account.id).ok();
         self.record_snapshot("manual_position_delete".into())?;
         Ok(())
     }
@@ -916,6 +918,11 @@ impl PortfolioRepository {
         };
         let closed_trade_record = self.record_closed_trade(closed_trade)?;
 
+        self.connection.execute(
+            "UPDATE accounts SET wallet_balance = wallet_balance + ?2 WHERE id = ?1",
+            params![account.id, realized_pnl],
+        )?;
+
         let fully_closed = (position.quantity - quantity_to_close).abs() <= 1e-9;
         if fully_closed {
             let closed_position = PortfolioPosition {
@@ -937,6 +944,7 @@ impl PortfolioRepository {
             self.connection
                 .execute("DELETE FROM positions WHERE id = ?1", params![position.id])?;
             self.recalculate_non_live_account_risk(&account.id)?;
+            self.snapshot_manual_account_equity(&account.id).ok();
             self.record_snapshot("manual_position_close".into())?;
             return Ok(CloseManualPositionResult {
                 closed_trade: closed_trade_record,
@@ -1719,7 +1727,23 @@ impl PortfolioRepository {
         Ok(updated)
     }
 
+    /// Record a balance_event snapshot for a manual/import account based on
+    /// the current wallet_balance and computed equity (wallet + open unrealised PnL).
+    /// Called after every manual position mutation so charts have data points.
+    fn snapshot_manual_account_equity(&self, account_id: &str) -> AppResult<()> {
+        let account = self.get_account(account_id)?;
+        if account.account_mode == AccountMode::Live {
+            return Ok(());
+        }
+        let positions = self.fetch_positions_for_account(account_id)?;
+        let unrealized_pnl: f64 = positions.iter().map(|p| p.unrealized_pnl).sum();
+        let equity = account.wallet_balance + unrealized_pnl;
+        self.record_balance_event(account_id, account.wallet_balance, equity, Utc::now(), None)?;
+        Ok(())
+    }
+
     fn recalculate_non_live_account_risk(&self, account_id: &str) -> AppResult<()> {
+
         let account = self.get_account(account_id)?;
         if account.account_mode == AccountMode::Live {
             return Ok(());
@@ -1854,26 +1878,31 @@ impl PortfolioRepository {
                             );
                         }
                         (ExchangeKind::Blofin, MarginMode::Cross) => {
+                            // Cross collateral pool:
+                            //   wallet_balance + bonus
+                            //   - isolated margins used (other positions)
+                            //   + all cross position unrealized PnL (including this one)
+                            let cross_pnl_all: f64 = prepared
+                                .iter()
+                                .filter(|other| {
+                                    other.position.exchange == position.exchange
+                                        && other.position.margin_mode == Some(MarginMode::Cross)
+                                })
+                                .map(|other| other.position.unrealized_pnl)
+                                .sum();
+                            let isolated_margins: f64 = prepared
+                                .iter()
+                                .filter(|other| {
+                                    other.position.id != position.id
+                                        && other.position.exchange == position.exchange
+                                        && other.position.margin_mode == Some(MarginMode::Isolated)
+                                })
+                                .map(|other| other.margin_used)
+                                .sum();
                             let collateral_pool = account.wallet_balance
                                 + account.bonus_balance
-                                - prepared
-                                    .iter()
-                                    .filter(|other| {
-                                        other.position.id != position.id
-                                            && other.position.exchange == position.exchange
-                                            && other.position.margin_mode == Some(MarginMode::Isolated)
-                                    })
-                                    .map(|other| other.margin_used)
-                                    .sum::<f64>()
-                                + prepared
-                                    .iter()
-                                    .filter(|other| {
-                                        other.position.id != position.id
-                                            && other.position.exchange == position.exchange
-                                            && other.position.margin_mode == Some(MarginMode::Cross)
-                                    })
-                                    .map(|other| other.position.unrealized_pnl)
-                                    .sum::<f64>();
+                                - isolated_margins
+                                + cross_pnl_all;
                             let other_required = prepared
                                 .iter()
                                 .filter(|other| {
@@ -1905,26 +1934,31 @@ impl PortfolioRepository {
                             );
                         }
                         (ExchangeKind::Hyperliquid, MarginMode::Cross) => {
+                            // Cross collateral pool:
+                            //   wallet_balance + bonus
+                            //   - isolated margins used (other positions)
+                            //   + all cross position unrealized PnL (including this one)
+                            let cross_pnl_all: f64 = prepared
+                                .iter()
+                                .filter(|other| {
+                                    other.position.exchange == position.exchange
+                                        && other.position.margin_mode == Some(MarginMode::Cross)
+                                })
+                                .map(|other| other.position.unrealized_pnl)
+                                .sum();
+                            let isolated_margins: f64 = prepared
+                                .iter()
+                                .filter(|other| {
+                                    other.position.id != position.id
+                                        && other.position.exchange == position.exchange
+                                        && other.position.margin_mode == Some(MarginMode::Isolated)
+                                })
+                                .map(|other| other.margin_used)
+                                .sum();
                             let collateral_pool = account.wallet_balance
                                 + account.bonus_balance
-                                - prepared
-                                    .iter()
-                                    .filter(|other| {
-                                        other.position.id != position.id
-                                            && other.position.exchange == position.exchange
-                                            && other.position.margin_mode == Some(MarginMode::Isolated)
-                                    })
-                                    .map(|other| other.margin_used)
-                                    .sum::<f64>()
-                                + prepared
-                                    .iter()
-                                    .filter(|other| {
-                                        other.position.id != position.id
-                                            && other.position.exchange == position.exchange
-                                            && other.position.margin_mode == Some(MarginMode::Cross)
-                                    })
-                                    .map(|other| other.position.unrealized_pnl)
-                                    .sum::<f64>();
+                                - isolated_margins
+                                + cross_pnl_all;
                             let other_required = prepared
                                 .iter()
                                 .filter(|other| {
@@ -2084,6 +2118,7 @@ impl PortfolioRepository {
                 _ => "Manual position opened".into(),
             }),
         ))?;
+        self.snapshot_manual_account_equity(&account.id).ok();
         Ok(position)
     }
 
@@ -2480,6 +2515,21 @@ impl PortfolioRepository {
         });
 
         Ok(series)
+    }
+
+    pub fn reset_database(&self) -> AppResult<()> {
+        self.connection.execute_batch(
+            "
+            DELETE FROM accounts;
+            DELETE FROM positions;
+            DELETE FROM snapshots;
+            DELETE FROM balance_events;
+            DELETE FROM funding_entries;
+            DELETE FROM position_events;
+            DELETE FROM closed_trades;
+            ",
+        )?;
+        Ok(())
     }
 
     fn fetch_portfolio_history(&self, limit: usize) -> AppResult<Vec<BalanceHistoryPoint>> {
@@ -3384,6 +3434,7 @@ fn validate_position_against_market(
     Ok(())
 }
 
+#[allow(dead_code)]
 fn is_step_aligned(quantity: f64, step: f64) -> bool {
     if step <= 0.0 {
         return true;

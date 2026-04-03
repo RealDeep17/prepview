@@ -131,7 +131,12 @@ pub async fn fetch_exchange_risk_tiers(
         }
         ExchangeKind::Hyperliquid => {
             let connector = HyperliquidConnector::new(client);
-            let meta = connector.fetch_meta().await?;
+            let dex = if let Some((dex_name, _)) = exchange_symbol.split_once(':') {
+                Some(dex_name)
+            } else {
+                None
+            };
+            let meta = connector.fetch_meta(dex).await?;
             parse_hyperliquid_risk_tiers(exchange_symbol, &meta)
         }
         _ => Err(invalid_input(
@@ -201,12 +206,32 @@ impl HyperliquidConnector {
             .map_err(Into::into)
     }
 
-    async fn fetch_meta_and_asset_contexts(&self) -> AppResult<HyperliquidMetaAndAssetCtxs> {
+    async fn fetch_perp_dexs(&self) -> AppResult<Vec<HyperliquidPerpDex>> {
         self.client
             .post(HYPERLIQUID_INFO_URL)
             .json(&serde_json::json!({
-                "type": "metaAndAssetCtxs",
+                "type": "perpDexs",
             }))
+            .send()
+            .await?
+            .error_for_status()?
+            .json::<Vec<HyperliquidPerpDex>>()
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn fetch_meta_and_asset_contexts(&self, dex: Option<&str>) -> AppResult<HyperliquidMetaAndAssetCtxs> {
+        let mut payload = serde_json::json!({
+            "type": "metaAndAssetCtxs",
+        });
+        if let Some(d) = dex {
+            if d != "HL" {
+                payload.as_object_mut().unwrap().insert("dex".to_string(), serde_json::Value::String(d.to_string()));
+            }
+        }
+        self.client
+            .post(HYPERLIQUID_INFO_URL)
+            .json(&payload)
             .send()
             .await?
             .error_for_status()?
@@ -215,12 +240,18 @@ impl HyperliquidConnector {
             .map_err(Into::into)
     }
 
-    async fn fetch_meta(&self) -> AppResult<HyperliquidMeta> {
+    async fn fetch_meta(&self, dex: Option<&str>) -> AppResult<HyperliquidMeta> {
+        let mut payload = serde_json::json!({
+            "type": "meta",
+        });
+        if let Some(d) = dex {
+            if d != "HL" {
+                payload.as_object_mut().unwrap().insert("dex".to_string(), serde_json::Value::String(d.to_string()));
+            }
+        }
         self.client
             .post(HYPERLIQUID_INFO_URL)
-            .json(&serde_json::json!({
-                "type": "meta",
-            }))
+            .json(&payload)
             .send()
             .await?
             .error_for_status()?
@@ -371,14 +402,37 @@ impl ExchangeConnector for HyperliquidConnector {
     }
 
     async fn fetch_markets(&self) -> AppResult<Vec<ExchangeMarket>> {
-        let payload = self.fetch_meta_and_asset_contexts().await?;
-        Ok(parse_hyperliquid_markets(&payload, self))
+        let dexs = self.fetch_perp_dexs().await.unwrap_or_default();
+        let mut markets = Vec::new();
+
+        // If fetch_perp_dexs fails or is empty, fallback to main dex
+        if dexs.is_empty() {
+            if let Ok(payload) = self.fetch_meta_and_asset_contexts(None).await {
+                markets.extend(parse_hyperliquid_markets(&payload, self));
+            }
+        } else {
+            let futures = dexs.iter().map(|dex| {
+                let dex_name = if dex.name == "HL" { None } else { Some(dex.name.as_str()) };
+                self.fetch_meta_and_asset_contexts(dex_name)
+            });
+            let results = futures_util::future::join_all(futures).await;
+            for payload in results.into_iter().flatten() {
+                markets.extend(parse_hyperliquid_markets(&payload, self));
+            }
+        }
+
+        Ok(markets)
     }
 
     async fn fetch_market_quote(&self, exchange_symbol: &str) -> AppResult<MarketQuote> {
         let lookup_symbol = hyperliquid_exchange_symbol(exchange_symbol);
+        let dex = if let Some((dex_name, _)) = lookup_symbol.split_once(':') {
+            Some(dex_name)
+        } else {
+            None
+        };
         let (payload, predicted_fundings) = tokio::try_join!(
-            self.fetch_meta_and_asset_contexts(),
+            self.fetch_meta_and_asset_contexts(dex),
             self.fetch_predicted_fundings()
         )?;
         let markets = parse_hyperliquid_markets(&payload, self);
@@ -1197,6 +1251,11 @@ struct HyperliquidFundingDetails {
 }
 
 type HyperliquidMetaAndAssetCtxs = (HyperliquidMeta, Vec<HyperliquidAssetContext>);
+
+#[derive(Debug, Deserialize)]
+struct HyperliquidPerpDex {
+    name: String,
+}
 
 #[derive(Debug, Deserialize)]
 struct HyperliquidMeta {

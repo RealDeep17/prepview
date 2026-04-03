@@ -29,7 +29,7 @@ export function PositionsPane() {
     }
   };
 
-  const handleContextMenu = (e: React.MouseEvent, posId: string, posSymbol: string, posExchange: string, posAccountId: string) => {
+  const handleContextMenu = (e: React.MouseEvent, posId: string, posSymbol: string, _posExchange: string, posAccountId: string) => {
     e.preventDefault();
     e.stopPropagation();
     setSelectedPositionId(posId);
@@ -98,7 +98,8 @@ export function PositionsPane() {
         {positions.map((pos) => {
           const market = bootstrap?.markets?.find(m => m.symbol.toUpperCase() === pos.symbol.toUpperCase() && m.exchange.toLowerCase() === pos.exchange.toLowerCase());
           const faceValue = market?.contractValue ?? 1.0;
-          const notional = (pos.markPrice ?? pos.entryPrice) * pos.quantity * faceValue;
+          const tokenSize = pos.quantity * faceValue;
+          const notional = (pos.markPrice ?? pos.entryPrice) * tokenSize;
           return (
             <tr
               key={pos.id}
@@ -118,7 +119,7 @@ export function PositionsPane() {
               <td>
                 {pos.marginMode && <span className="margin-tag">{pos.marginMode}</span>}
               </td>
-              <td className="num">{fmtNumber(pos.quantity, 4)}</td>
+              <td className="num">{fmtNumber(tokenSize, 4)}</td>
               <td className="num">{fmtCurrency(pos.entryPrice)}</td>
               <td className="num">{pos.markPrice != null ? fmtCurrency(pos.markPrice) : '—'}</td>
               <td className="num">

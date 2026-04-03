@@ -3,14 +3,40 @@ import { useAppStore } from '../store/appStore';
 import { syncAllLiveAccounts, refreshPortfolioQuotes } from '../lib/bridge';
 import type { ExchangeKind } from '../lib/types';
 
+// SVG icons that mirror the VS Code / IDE layout panel toggle style
+const IconLeft = ({ active }: { active: boolean }) => (
+  <svg width="16" height="14" viewBox="0 0 16 14" fill="none">
+    <rect x="0.5" y="0.5" width="15" height="13" rx="1.5" stroke="currentColor" strokeOpacity={active ? 1 : 0.4} />
+    <rect x="1" y="1" width="5" height="12" rx="1" fill="currentColor" fillOpacity={active ? 0.9 : 0.2} />
+  </svg>
+);
+const IconRight = ({ active }: { active: boolean }) => (
+  <svg width="16" height="14" viewBox="0 0 16 14" fill="none">
+    <rect x="0.5" y="0.5" width="15" height="13" rx="1.5" stroke="currentColor" strokeOpacity={active ? 1 : 0.4} />
+    <rect x="10" y="1" width="5" height="12" rx="1" fill="currentColor" fillOpacity={active ? 0.9 : 0.2} />
+  </svg>
+);
+const IconBottom = ({ active }: { active: boolean }) => (
+  <svg width="16" height="14" viewBox="0 0 16 14" fill="none">
+    <rect x="0.5" y="0.5" width="15" height="13" rx="1.5" stroke="currentColor" strokeOpacity={active ? 1 : 0.4} />
+    <rect x="1" y="8" width="14" height="5" rx="1" fill="currentColor" fillOpacity={active ? 0.9 : 0.2} />
+  </svg>
+);
+
 const ZOOM_LEVELS = [0.75, 0.85, 1, 1.25, 1.5, 2] as const;
 
 export function TopBar() {
-  const bootstrap = useAppStore((s) => s.bootstrap);
-  const scopeExchange = useAppStore((s) => s.scopeExchange);
+  const bootstrap        = useAppStore((s) => s.bootstrap);
+  const scopeExchange    = useAppStore((s) => s.scopeExchange);
   const setScopeExchange = useAppStore((s) => s.setScopeExchange);
-  const openOverlay = useAppStore((s) => s.openOverlay);
-  const fetchBootstrap = useAppStore((s) => s.fetchBootstrap);
+  const openOverlay      = useAppStore((s) => s.openOverlay);
+  const fetchBootstrap   = useAppStore((s) => s.fetchBootstrap);
+  const leftPanelOpen    = useAppStore((s) => s.leftPanelOpen);
+  const rightPanelOpen   = useAppStore((s) => s.rightPanelOpen);
+  const chartOpen        = useAppStore((s) => s.chartOpen);
+  const toggleLeftPanel  = useAppStore((s) => s.toggleLeftPanel);
+  const toggleRightPanel = useAppStore((s) => s.toggleRightPanel);
+  const toggleChart      = useAppStore((s) => s.toggleChart);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [zoom, setZoom] = useState(1);
   const [zoomOpen, setZoomOpen] = useState(false);
@@ -116,11 +142,36 @@ export function TopBar() {
         )}
       </div>
 
+      {/* Layout panel toggles — IDE style, next to zoom */}
+      <div className="layout-toggles">
+        <button
+          className={`layout-toggle-btn${leftPanelOpen ? ' active' : ''}`}
+          onClick={toggleLeftPanel}
+          title={leftPanelOpen ? 'Hide accounts panel' : 'Show accounts panel'}
+        >
+          <IconLeft active={leftPanelOpen} />
+        </button>
+        <button
+          className={`layout-toggle-btn${chartOpen ? ' active' : ''}`}
+          onClick={toggleChart}
+          title={chartOpen ? 'Hide charts' : 'Show charts'}
+        >
+          <IconBottom active={chartOpen} />
+        </button>
+        <button
+          className={`layout-toggle-btn${rightPanelOpen ? ' active' : ''}`}
+          onClick={toggleRightPanel}
+          title={rightPanelOpen ? 'Hide detail panel' : 'Show detail panel'}
+        >
+          <IconRight active={rightPanelOpen} />
+        </button>
+      </div>
       <div className="sync-badge" onClick={handleSyncAll} style={{ cursor: 'pointer' }} title="Click to sync all">
         <span className={`sync-dot ${dotClass}`} />
         <span>{sync?.label ?? 'local'}</span>
         {countdown !== null && <span>· {countdown}s</span>}
       </div>
+
       <button className="btn btn--ghost btn--small" onClick={handleRefreshQuotes} title="Refresh quotes">
         ↻
       </button>
