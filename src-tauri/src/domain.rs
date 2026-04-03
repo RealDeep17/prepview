@@ -339,6 +339,7 @@ pub struct BootstrapState {
     pub recent_sync_jobs: Vec<SyncJobRecord>,
     pub lan_status: LanStatus,
     pub auto_sync_status: AutoSyncStatus,
+    pub markets: Vec<ExchangeMarket>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

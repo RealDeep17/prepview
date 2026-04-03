@@ -208,6 +208,7 @@ export interface BootstrapState {
   recentSyncJobs: SyncJobRecord[];
   lanStatus: LanStatus;
   autoSyncStatus: AutoSyncStatus;
+  markets: ExchangeMarket[];
 }
 
 export interface CreateAccountInput {

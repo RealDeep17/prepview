@@ -49,9 +49,10 @@ export function EditPositionOverlay() {
     setEntryPrice(String(position.entryPrice));
     setMarkPrice(position.markPrice != null ? String(position.markPrice) : '');
     setLeverage(String(position.leverage));
-    setMarginUsed(position.marginUsed != null ? String(position.marginUsed) : '');
-    setLiquidationPrice(position.liquidationPrice != null ? String(position.liquidationPrice) : '');
-    setMaintenanceMargin(position.maintenanceMargin != null ? String(position.maintenanceMargin) : '');
+    const isLocalEngine = position.riskSource === 'local_engine';
+    setMarginUsed(!isLocalEngine && position.marginUsed != null ? String(position.marginUsed) : '');
+    setLiquidationPrice(!isLocalEngine && position.liquidationPrice != null ? String(position.liquidationPrice) : '');
+    setMaintenanceMargin(!isLocalEngine && position.maintenanceMargin != null ? String(position.maintenanceMargin) : '');
     setFeePaid(String(position.feePaid));
     setFundingPaid(String(position.fundingPaid));
     setTakeProfit(position.takeProfit != null ? String(position.takeProfit) : '');
@@ -160,22 +161,22 @@ export function EditPositionOverlay() {
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label">Quantity</label>
-                <input className="form-input" type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+                <input className="form-input" type="number" step="any" value={quantity} onChange={(e) => setQuantity(e.target.value)} required />
               </div>
               <div className="form-group">
                 <label className="form-label">Entry Price</label>
-                <input className="form-input" type="number" value={entryPrice} onChange={(e) => setEntryPrice(e.target.value)} />
+                <input className="form-input" type="number" step="any" value={entryPrice} onChange={(e) => setEntryPrice(e.target.value)} required />
               </div>
             </div>
 
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label">Mark Price</label>
-                <input className="form-input" type="number" value={markPrice} onChange={(e) => setMarkPrice(e.target.value)} />
+                <input className="form-input" type="number" step="any" value={markPrice} onChange={(e) => setMarkPrice(e.target.value)} />
               </div>
               <div className="form-group">
                 <label className="form-label">Leverage</label>
-                <input className="form-input" type="number" value={leverage} onChange={(e) => setLeverage(e.target.value)} />
+                <input className="form-input" type="number" step="any" value={leverage} onChange={(e) => setLeverage(e.target.value)} />
               </div>
             </div>
 
@@ -190,29 +191,29 @@ export function EditPositionOverlay() {
               </div>
               <div className="form-group">
                 <label className="form-label">Margin Used</label>
-                <input className="form-input" type="number" value={marginUsed} onChange={(e) => setMarginUsed(e.target.value)} />
+                <input className="form-input" type="number" step="any" value={marginUsed} onChange={(e) => setMarginUsed(e.target.value)} placeholder="Auto" />
               </div>
             </div>
 
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label">Fee Paid</label>
-                <input className="form-input" type="number" value={feePaid} onChange={(e) => setFeePaid(e.target.value)} />
+                <input className="form-input" type="number" step="any" value={feePaid} onChange={(e) => setFeePaid(e.target.value)} />
               </div>
               <div className="form-group">
                 <label className="form-label">Funding Paid</label>
-                <input className="form-input" type="number" value={fundingPaid} onChange={(e) => setFundingPaid(e.target.value)} />
+                <input className="form-input" type="number" step="any" value={fundingPaid} onChange={(e) => setFundingPaid(e.target.value)} />
               </div>
             </div>
 
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label">Take Profit</label>
-                <input className="form-input" type="number" value={takeProfit} onChange={(e) => setTakeProfit(e.target.value)} placeholder="Optional" />
+                <input className="form-input" type="number" step="any" value={takeProfit} onChange={(e) => setTakeProfit(e.target.value)} placeholder="Optional" />
               </div>
               <div className="form-group">
                 <label className="form-label">Stop Loss</label>
-                <input className="form-input" type="number" value={stopLoss} onChange={(e) => setStopLoss(e.target.value)} placeholder="Optional" />
+                <input className="form-input" type="number" step="any" value={stopLoss} onChange={(e) => setStopLoss(e.target.value)} placeholder="Optional" />
               </div>
             </div>
 
@@ -232,20 +233,20 @@ export function EditPositionOverlay() {
           <>
             <div className="form-group">
               <label className="form-label">Exit Price</label>
-              <input className="form-input" type="number" value={exitPrice} onChange={(e) => setExitPrice(e.target.value)} placeholder="Required" />
+              <input className="form-input" type="number" step="any" value={exitPrice} onChange={(e) => setExitPrice(e.target.value)} placeholder="Required" />
             </div>
             <div className="form-group">
               <label className="form-label">Quantity to Close (blank = full)</label>
-              <input className="form-input" type="number" value={closeQty} onChange={(e) => setCloseQty(e.target.value)} placeholder={String(position.quantity)} />
+              <input className="form-input" type="number" step="any" value={closeQty} onChange={(e) => setCloseQty(e.target.value)} placeholder="Full position" />
             </div>
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label">Fee Paid</label>
-                <input className="form-input" type="number" value={closeFee} onChange={(e) => setCloseFee(e.target.value)} placeholder="0" />
+                <input className="form-input" type="number" step="any" value={closeFee} onChange={(e) => setCloseFee(e.target.value)} placeholder="0" />
               </div>
               <div className="form-group">
                 <label className="form-label">Funding Paid</label>
-                <input className="form-input" type="number" value={closeFunding} onChange={(e) => setCloseFunding(e.target.value)} placeholder="0" />
+                <input className="form-input" type="number" step="any" value={closeFunding} onChange={(e) => setCloseFunding(e.target.value)} placeholder="0" />
               </div>
             </div>
             <div className="form-group">

@@ -15,11 +15,11 @@ export function AddPositionOverlay() {
   const [symbol, setSymbol] = useState('');
   const [exchangeSymbol, setExchangeSymbol] = useState('');
   const [side, setSide] = useState<PositionSide>('long');
-  const [marginMode, setMarginMode] = useState<MarginMode | ''>('');
+  const [marginMode, setMarginMode] = useState<MarginMode | ''>('cross');
   const [quantity, setQuantity] = useState('');
   const [entryPrice, setEntryPrice] = useState('');
   const [markPrice, setMarkPrice] = useState('');
-  const [leverage, setLeverage] = useState('1');
+  const [leverage, setLeverage] = useState('20');
   const [marginUsed, setMarginUsed] = useState('');
   const [liquidationPrice, setLiquidationPrice] = useState('');
   const [maintenanceMargin, setMaintenanceMargin] = useState('');
@@ -229,62 +229,62 @@ export function AddPositionOverlay() {
           </div>
           <div className="form-group">
             <label className="form-label">Leverage</label>
-            <input className="form-input" type="number" value={leverage} onChange={(e) => setLeverage(e.target.value)} />
+            <input className="form-input" type="number" step="any" value={leverage} onChange={(e) => setLeverage(e.target.value)} />
           </div>
         </div>
 
         <div className="form-row">
           <div className="form-group">
             <label className="form-label">Quantity</label>
-            <input className="form-input" type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+            <input className="form-input" type="number" step="any" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
           </div>
           <div className="form-group">
             <label className="form-label">Entry Price</label>
-            <input className="form-input" type="number" value={entryPrice} onChange={(e) => setEntryPrice(e.target.value)} />
+            <input className="form-input" type="number" step="any" value={entryPrice} onChange={(e) => setEntryPrice(e.target.value)} />
           </div>
         </div>
 
         <div className="form-row">
           <div className="form-group">
             <label className="form-label">Mark Price</label>
-            <input className="form-input" type="number" value={markPrice} onChange={(e) => setMarkPrice(e.target.value)} placeholder="Auto" />
+            <input className="form-input" type="number" step="any" value={markPrice} onChange={(e) => setMarkPrice(e.target.value)} placeholder="Auto" />
           </div>
           <div className="form-group">
             <label className="form-label">Margin Used</label>
-            <input className="form-input" type="number" value={marginUsed} onChange={(e) => setMarginUsed(e.target.value)} placeholder="Auto" />
+            <input className="form-input" type="number" step="any" value={marginUsed} onChange={(e) => setMarginUsed(e.target.value)} placeholder="Auto" />
           </div>
         </div>
 
         <div className="form-row">
           <div className="form-group">
             <label className="form-label">Liquidation Price</label>
-            <input className="form-input" type="number" value={liquidationPrice} onChange={(e) => setLiquidationPrice(e.target.value)} placeholder="Optional" />
+            <input className="form-input" type="number" step="any" value={liquidationPrice} onChange={(e) => setLiquidationPrice(e.target.value)} placeholder="Optional" />
           </div>
           <div className="form-group">
             <label className="form-label">Maint. Margin</label>
-            <input className="form-input" type="number" value={maintenanceMargin} onChange={(e) => setMaintenanceMargin(e.target.value)} placeholder="Optional" />
+            <input className="form-input" type="number" step="any" value={maintenanceMargin} onChange={(e) => setMaintenanceMargin(e.target.value)} placeholder="Optional" />
           </div>
         </div>
 
         <div className="form-row">
           <div className="form-group">
             <label className="form-label">Fee Paid</label>
-            <input className="form-input" type="number" value={feePaid} onChange={(e) => setFeePaid(e.target.value)} placeholder="0" />
+            <input className="form-input" type="number" step="any" value={feePaid} onChange={(e) => setFeePaid(e.target.value)} placeholder="0" />
           </div>
           <div className="form-group">
             <label className="form-label">Funding Paid</label>
-            <input className="form-input" type="number" value={fundingPaid} onChange={(e) => setFundingPaid(e.target.value)} placeholder="0" />
+            <input className="form-input" type="number" step="any" value={fundingPaid} onChange={(e) => setFundingPaid(e.target.value)} placeholder="0" />
           </div>
         </div>
 
         <div className="form-row">
           <div className="form-group">
             <label className="form-label">Take Profit</label>
-            <input className="form-input" type="number" value={takeProfit} onChange={(e) => setTakeProfit(e.target.value)} placeholder="Optional" />
+            <input className="form-input" type="number" step="any" value={takeProfit} onChange={(e) => setTakeProfit(e.target.value)} placeholder="Optional" />
           </div>
           <div className="form-group">
             <label className="form-label">Stop Loss</label>
-            <input className="form-input" type="number" value={stopLoss} onChange={(e) => setStopLoss(e.target.value)} placeholder="Optional" />
+            <input className="form-input" type="number" step="any" value={stopLoss} onChange={(e) => setStopLoss(e.target.value)} placeholder="Optional" />
           </div>
         </div>
 

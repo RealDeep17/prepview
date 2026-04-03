@@ -11,6 +11,7 @@ export function PositionsPane() {
   const setSelectedPositionId = useAppStore((s) => s.setSelectedPositionId);
   const openOverlay = useAppStore((s) => s.openOverlay);
   const fetchBootstrap = useAppStore((s) => s.fetchBootstrap);
+  const bootstrap = useAppStore((s) => s.bootstrap);
   const positions = scopedPositions(state);
   const { show: showCtx } = useContextMenu();
   const { toast } = useToast();
@@ -33,7 +34,10 @@ export function PositionsPane() {
     e.stopPropagation();
     setSelectedPositionId(posId);
 
-    const isManual = posExchange === 'manual' || posExchange === 'import';
+    const isManual = !bootstrap ? false : (() => {
+      const account = bootstrap.accounts.find(a => a.id === posAccountId);
+      return account?.accountMode === 'manual' || account?.accountMode === 'import';
+    })();
     const items = [];
 
     if (isManual) {
@@ -92,7 +96,9 @@ export function PositionsPane() {
       </thead>
       <tbody>
         {positions.map((pos) => {
-          const notional = (pos.markPrice ?? pos.entryPrice) * pos.quantity;
+          const market = bootstrap?.markets?.find(m => m.symbol.toUpperCase() === pos.symbol.toUpperCase() && m.exchange.toLowerCase() === pos.exchange.toLowerCase());
+          const faceValue = market?.contractValue ?? 1.0;
+          const notional = (pos.markPrice ?? pos.entryPrice) * pos.quantity * faceValue;
           return (
             <tr
               key={pos.id}

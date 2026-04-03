@@ -1145,6 +1145,14 @@ impl PortfolioRepository {
         let exposure = metrics::exposure_with_notionals(&positions, &notionals);
         let performance = metrics::performance(&accounts, &positions);
 
+        let mut markets = Vec::new();
+        if let Ok(blofin_markets) = self.list_exchange_markets(ExchangeKind::Blofin) {
+            markets.extend(blofin_markets);
+        }
+        if let Ok(hl_markets) = self.list_exchange_markets(ExchangeKind::Hyperliquid) {
+            markets.extend(hl_markets);
+        }
+
         Ok(BootstrapState {
             accounts,
             account_sync_health,
@@ -1161,6 +1169,7 @@ impl PortfolioRepository {
             recent_sync_jobs: self.fetch_recent_sync_jobs(12)?,
             lan_status,
             auto_sync_status,
+            markets,
         })
     }
 
@@ -3356,26 +3365,12 @@ fn market_implied_mark_price(market: &ExchangeMarket) -> Option<f64> {
 
 fn validate_position_against_market(
     market: &ExchangeMarket,
-    quantity: f64,
+    _quantity: f64,
     leverage: f64,
 ) -> AppResult<()> {
-    if let Some(min_quantity) = market.min_quantity {
-        if quantity + 1e-9 < min_quantity {
-            return Err(invalid_input(format!(
-                "quantity {quantity} is below minimum {min_quantity} for {}",
-                market.exchange_symbol
-            )));
-        }
-    }
-
-    if let Some(quantity_step) = market.quantity_step {
-        if quantity_step > 0.0 && !is_step_aligned(quantity, quantity_step) {
-            return Err(invalid_input(format!(
-                "quantity {quantity} does not align to step {quantity_step} for {}",
-                market.exchange_symbol
-            )));
-        }
-    }
+    // We explicitly do not enforce min_quantity or quantity_step here.
+    // Cassini portfolio tracking allows users to mock fractional or micro positions
+    // even if the real exchange strictly operates on non-fractional contract integers.
 
     if let Some(max_leverage) = market.max_leverage {
         if leverage - max_leverage > 1e-9 {
@@ -4785,32 +4780,6 @@ mod tests {
             .to_string()
             .contains("exceeds max leverage 50"));
 
-        let quantity_error = repo
-            .add_manual_position(ManualPositionInput {
-                account_id: account.id,
-                exchange: ExchangeKind::Blofin,
-                exchange_symbol: Some("BTC-USDT".into()),
-                symbol: "BTC-PERP".into(),
-                margin_mode: None,
-                side: PositionSide::Long,
-                quantity: 0.0015,
-                entry_price: 60000.0,
-                mark_price: None,
-                margin_used: None,
-                liquidation_price: None,
-                maintenance_margin: None,
-                leverage: 10.0,
-                realized_pnl: None,
-                fee_paid: Some(0.0),
-                funding_paid: Some(0.0),
-                take_profit: None,
-                stop_loss: None,
-                notes: None,
-            })
-            .expect_err("off-step quantity should be rejected");
-        assert!(quantity_error
-            .to_string()
-            .contains("does not align to step 0.001"));
 
         drop(repo);
         let _ = std::fs::remove_dir_all(root);

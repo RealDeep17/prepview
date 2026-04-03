@@ -48,7 +48,9 @@ export function DetailRail() {
       const fundingOffset = position.fundingPaid * posAccount.bonusFundingDeductionRate;
       positionBonusOffset = Math.min(feeOffset + lossOffset + fundingOffset, posAccount.bonusBalance);
     }
-    const notional = (position.markPrice ?? position.entryPrice) * position.quantity;
+    const market = bootstrap.markets.find((m) => m.symbol.toUpperCase() === position.symbol.toUpperCase() && m.exchange.toLowerCase() === position.exchange.toLowerCase());
+    const faceValue = market?.contractValue ?? 1.0;
+    const notional = (position.markPrice ?? position.entryPrice) * position.quantity * faceValue;
 
     return (
       <>
@@ -112,7 +114,7 @@ export function DetailRail() {
         )}
         <DetailRow label="Opened" value={fmtTimestamp(position.openedAt)} />
 
-        {position.exchange === 'manual' || position.exchange === 'import' ? (
+        {posAccount?.accountMode === 'manual' || posAccount?.accountMode === 'import' ? (
           <div className="rail-actions">
             <button className="btn btn--ghost" onClick={() => openOverlay('edit-position', position.id)}>
               Edit
