@@ -16,7 +16,7 @@ npm run tauri:dev
 Notes:
 
 - The Vite dev server is pinned to port `1420` with `--strictPort` so Tauri never points at the wrong frontend origin.
-- Desktop development is the only supported mode for the first public release.
+- Desktop development is the only supported mode.
 
 ## Verification
 
@@ -29,13 +29,20 @@ npm run check
 
 ## Desktop release targets
 
-PrepView is currently prepared for desktop-only releases on:
+PrepView currently publishes desktop bundles for:
 
 - macOS `x64` and `arm64`
 - Windows `x64` and `arm64`
 - Linux `x64` and `arm64`
 
-The app is not being prepared for iOS or Android in the first public release.
+No iOS or Android build is maintained.
+
+## Release flow
+
+1. Update `package.json`, `package-lock.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `src-tauri/tauri.conf.json`, and [`CHANGELOG.md`](../CHANGELOG.md).
+2. Push the release-prep commit to `main`.
+3. Push a `vX.Y.Z` tag.
+4. GitHub Actions builds a draft release with desktop bundles for macOS `x64` and `arm64`, Windows `x64` and `arm64`, and Linux `x64` and `arm64`.
 
 ## Packaging
 

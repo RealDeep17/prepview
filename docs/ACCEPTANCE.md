@@ -31,4 +31,6 @@
 - Any known Sev1 or Sev2 defect
 - Any failing `npm run lint` or `npm run check`
 - Any shipped placeholder KPI or fake metric
+- Any missing release artifact for a promised desktop OS/CPU target
+- Any version mismatch between `package.json`, `package-lock.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `src-tauri/tauri.conf.json`, `CHANGELOG.md`, and the release tag
 - Public docs that materially disagree with shipped behavior

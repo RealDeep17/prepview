@@ -16,20 +16,36 @@ jobs:
       matrix:
         include:
           - platform: macos-latest
+            name: macOS arm64
             args: --target aarch64-apple-darwin
+            rust_targets: aarch64-apple-darwin
           - platform: macos-latest
+            name: macOS x64
             args: --target x86_64-apple-darwin
+            rust_targets: x86_64-apple-darwin
           - platform: ubuntu-24.04
+            name: Linux x64
             args: ""
+            rust_targets: ""
+          - platform: ubuntu-24.04-arm
+            name: Linux arm64
+            args: ""
+            rust_targets: ""
           - platform: windows-latest
+            name: Windows x64
             args: ""
+            rust_targets: ""
+          - platform: windows-11-arm
+            name: Windows arm64
+            args: ""
+            rust_targets: ""
     runs-on: ${{ matrix.platform }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
 
       - name: Install Linux system dependencies
-        if: matrix.platform == 'ubuntu-24.04'
+        if: startsWith(matrix.platform, 'ubuntu-')
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -47,7 +63,7 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ matrix.rust_targets }}
 
       - name: Install frontend dependencies
         run: npm ci
@@ -62,6 +78,11 @@ jobs:
           releaseName: PrepView v__VERSION__
           releaseBody: |
             Desktop bundles for PrepView v__VERSION__.
+            
+            Supported release targets:
+            - macOS x64 and arm64
+            - Windows x64 and arm64
+            - Linux x64 and arm64
           releaseDraft: true
           generateReleaseNotes: true
           args: ${{ matrix.args }}

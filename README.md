@@ -26,15 +26,15 @@ PrepView is a local-first desktop portfolio app for derivatives traders who want
 - No OS keychain prompt or OS login prompt required during normal startup
 - LAN projection disabled by default, loopback-only by default, and protected by a user-set bearer passphrase
 
-## First Public Release Scope
+## Desktop Release Scope
 
-PrepView is being prepared for desktop release only:
+PrepView currently ships as a desktop-only app:
 
 - macOS `x64` and `arm64`
 - Windows `x64` and `arm64`
 - Linux `x64` and `arm64`
 
-iPhone, iPad, and Android are not in scope for the first public release.
+iPhone, iPad, and Android are not supported release targets.
 
 ## Installation
 
@@ -66,6 +66,7 @@ npm run check
 - [Development](docs/DEVELOPMENT.md)
 - [Acceptance](docs/ACCEPTANCE.md)
 - [Connector evidence](docs/CONNECTOR_EVIDENCE.md)
+- [Changelog](CHANGELOG.md)
 - [Security policy](SECURITY.md)
 - [Contributing](CONTRIBUTING.md)
 
