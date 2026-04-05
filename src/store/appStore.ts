@@ -5,6 +5,8 @@ import {
   DEFAULT_POSITION_COLUMNS,
   POSITION_COLUMN_KEYS,
   type PositionColumnKey,
+  type PositionPnlFilter,
+  type PositionSideFilter,
   type PositionSortDirection,
 } from '../lib/positionView';
 
@@ -55,11 +57,16 @@ export interface AppState {
   positionColumns: PositionColumnKey[];
   positionSortKey: PositionColumnKey | null;
   positionSortDirection: PositionSortDirection;
+  positionSearch: string;
+  positionSideFilter: PositionSideFilter;
+  positionPnlFilter: PositionPnlFilter;
+  collapsedPositionGroups: string[];
   // Layout panel visibility
   leftPanelOpen: boolean;
   rightPanelOpen: boolean;
   chartOpen: boolean;
   fetchBootstrap: () => Promise<void>;
+  applyBootstrap: (bootstrap: BootstrapState) => void;
   setScopeExchange: (exchange: ExchangeKind | 'all') => void;
   setScopeAccountId: (id: string | null) => void;
   setSelectedAccountId: (id: string | null) => void;
@@ -70,7 +77,12 @@ export interface AppState {
   movePositionColumn: (column: PositionColumnKey, direction: 'left' | 'right') => void;
   setPositionSort: (key: PositionColumnKey | null, direction?: PositionSortDirection) => void;
   togglePositionSort: (key: PositionColumnKey) => void;
-  resetPositionView: () => void;
+  resetPositionColumns: () => void;
+  setPositionSearch: (value: string) => void;
+  setPositionSideFilter: (filter: PositionSideFilter) => void;
+  setPositionPnlFilter: (filter: PositionPnlFilter) => void;
+  resetPositionFilters: () => void;
+  togglePositionGroupCollapsed: (accountId: string) => void;
   openOverlay: (overlay: AppState['activeOverlay'], positionId?: string) => void;
   closeOverlay: () => void;
   toggleLeftPanel: () => void;
@@ -92,6 +104,10 @@ export const useAppStore = create<AppState>((set) => ({
   positionColumns: loadPositionColumns(),
   positionSortKey: loadPositionSortKey(),
   positionSortDirection: loadPositionSortDirection(),
+  positionSearch: '',
+  positionSideFilter: 'all',
+  positionPnlFilter: 'all',
+  collapsedPositionGroups: [],
   leftPanelOpen:  localStorage.getItem('prepview.lo') !== 'false',
   rightPanelOpen: localStorage.getItem('prepview.ro') !== 'false',
   chartOpen:      localStorage.getItem('prepview.co') === 'true',
@@ -109,8 +125,23 @@ export const useAppStore = create<AppState>((set) => ({
     }
   },
 
-  setScopeExchange: (exchange) => set({ scopeExchange: exchange, scopeAccountId: null }),
-  setScopeAccountId: (id) => set({ scopeAccountId: id }),
+  applyBootstrap: (bootstrap) => set({
+    bootstrap,
+    loading: false,
+    error: null,
+  }),
+
+  setScopeExchange: (exchange) => set({
+    scopeExchange: exchange,
+    scopeAccountId: null,
+    selectedPositionId: null,
+    collapsedPositionGroups: [],
+  }),
+  setScopeAccountId: (id) => set({
+    scopeAccountId: id,
+    selectedPositionId: null,
+    collapsedPositionGroups: [],
+  }),
   setSelectedAccountId: (id) => set({ selectedAccountId: id }),
   setSelectedPositionId: (id) => set({ selectedPositionId: id }),
   setActiveTab: (tab) => set({ activeTab: tab }),
@@ -156,23 +187,50 @@ export const useAppStore = create<AppState>((set) => ({
     };
   }),
   togglePositionSort: (key) => set((state) => {
-    const nextDirection =
-      state.positionSortKey === key && state.positionSortDirection === 'asc' ? 'desc' : 'asc';
-    localStorage.setItem(POSITION_SORT_KEY_STORAGE_KEY, key);
-    localStorage.setItem(POSITION_SORT_DIRECTION_STORAGE_KEY, nextDirection);
+    if (state.positionSortKey !== key) {
+      localStorage.setItem(POSITION_SORT_KEY_STORAGE_KEY, key);
+      localStorage.setItem(POSITION_SORT_DIRECTION_STORAGE_KEY, 'asc');
+      return {
+        positionSortKey: key,
+        positionSortDirection: 'asc',
+      };
+    }
+
+    if (state.positionSortDirection === 'asc') {
+      localStorage.setItem(POSITION_SORT_DIRECTION_STORAGE_KEY, 'desc');
+      return {
+        positionSortKey: key,
+        positionSortDirection: 'desc',
+      };
+    }
+
+    localStorage.removeItem(POSITION_SORT_KEY_STORAGE_KEY);
+    localStorage.setItem(POSITION_SORT_DIRECTION_STORAGE_KEY, 'asc');
     return {
-      positionSortKey: key,
-      positionSortDirection: nextDirection,
+      positionSortKey: null,
+      positionSortDirection: 'asc',
     };
   }),
-  resetPositionView: () => set(() => {
+  resetPositionColumns: () => set(() => {
     localStorage.setItem(POSITION_COLUMNS_STORAGE_KEY, JSON.stringify(DEFAULT_POSITION_COLUMNS));
-    localStorage.removeItem(POSITION_SORT_KEY_STORAGE_KEY);
-    localStorage.setItem(POSITION_SORT_DIRECTION_STORAGE_KEY, 'desc');
     return {
       positionColumns: DEFAULT_POSITION_COLUMNS,
-      positionSortKey: null,
-      positionSortDirection: 'desc',
+    };
+  }),
+  setPositionSearch: (value) => set({ positionSearch: value }),
+  setPositionSideFilter: (filter) => set({ positionSideFilter: filter }),
+  setPositionPnlFilter: (filter) => set({ positionPnlFilter: filter }),
+  resetPositionFilters: () => set({
+    positionSearch: '',
+    positionSideFilter: 'all',
+    positionPnlFilter: 'all',
+  }),
+  togglePositionGroupCollapsed: (accountId) => set((state) => {
+    const exists = state.collapsedPositionGroups.includes(accountId);
+    return {
+      collapsedPositionGroups: exists
+        ? state.collapsedPositionGroups.filter((id) => id !== accountId)
+        : [...state.collapsedPositionGroups, accountId],
     };
   }),
   openOverlay: (overlay, positionId) => set({

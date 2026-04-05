@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { useAppStore, selectedPosition } from '../store/appStore';
 import { findExchangeMarket, fmtCompactCurrency, fmtCompactNumber, fmtCostClass, fmtCurrency, fmtPnl, fmtPnlClass, fmtPercent, fmtTimestamp, fmtRelativeTime } from '../lib/fmt';
+import { buildFundingRateRows } from '../lib/fundingView';
 import { deleteManualPosition, syncLiveAccount, setLanProjection, resetDatabase } from '../lib/bridge';
 import { useToast } from '../shell/toastContext';
+import type { PortfolioPosition } from '../lib/types';
 
 export function DetailRail() {
   const bootstrap = useAppStore((s) => s.bootstrap);
@@ -131,7 +133,7 @@ export function DetailRail() {
           </div>
         )}
 
-        <BottomPanels bootstrap={bootstrap} onReset={handleReset} />
+        <BottomPanels bootstrap={bootstrap} position={position} onReset={handleReset} />
       </>
     );
   }
@@ -148,7 +150,7 @@ export function DetailRail() {
         <DetailRow label="Total Bonus Offset" value={`+${fmtCurrency(bootstrap.performance.totalBonusOffset)}`} />
       )}
 
-      <BottomPanels bootstrap={bootstrap} onReset={handleReset} />
+      <BottomPanels bootstrap={bootstrap} position={null} onReset={handleReset} />
     </>
   );
 }
@@ -165,7 +167,15 @@ function DetailRow({ label, value, suffix }: { label: string; value: string; suf
   );
 }
 
-function BottomPanels({ bootstrap, onReset }: { bootstrap: NonNullable<ReturnType<typeof useAppStore.getState>['bootstrap']>; onReset: () => Promise<void> }) {
+function BottomPanels({
+  bootstrap,
+  position,
+  onReset,
+}: {
+  bootstrap: NonNullable<ReturnType<typeof useAppStore.getState>['bootstrap']>;
+  position: PortfolioPosition | null;
+  onReset: () => Promise<void>;
+}) {
   const fetchBootstrap = useAppStore((s) => s.fetchBootstrap);
   const { toast } = useToast();
   const [lanPassphrase, setLanPassphrase] = useState('');
@@ -220,32 +230,39 @@ function BottomPanels({ bootstrap, onReset }: { bootstrap: NonNullable<ReturnTyp
     }
   };
 
-  // Funding rates — deduplicate by symbol, show latest rate
-  const fundingMap = new Map<string, number>();
-  for (const entry of bootstrap.recentFundingEntries) {
-    if (!fundingMap.has(entry.symbol)) {
-      fundingMap.set(entry.symbol, entry.rate);
-    }
-  }
+  const relevantSyncJobs = position
+    ? bootstrap.recentSyncJobs.filter((job) => job.accountId === position.accountId)
+    : bootstrap.recentSyncJobs;
+  const fundingRows = buildFundingRateRows(
+    bootstrap.positions,
+    bootstrap.markets,
+    bootstrap.recentFundingEntries,
+    position,
+  );
 
   return (
     <>
-      {fundingMap.size > 0 && (
+      {fundingRows.length > 0 && (
         <>
           <div className="panel-title">Funding Rates</div>
-          {Array.from(fundingMap.entries()).map(([symbol, rate]) => (
-            <div key={symbol} className="funding-row">
-              <span className="funding-symbol">{symbol}</span>
-              <span className={`funding-rate ${rate >= 0 ? 'pnl-positive' : 'pnl-negative'}`}>
-                {(rate * 100).toFixed(4)}%
+          {fundingRows.map((row) => (
+            <div key={row.key} className="funding-row">
+              <div className="funding-stack">
+                <span className="funding-symbol">{row.symbol}</span>
+                <span className="funding-meta">
+                  {row.accountName} · {row.side === 'long' ? 'Long' : 'Short'}
+                </span>
+              </div>
+              <span className={`funding-rate ${row.rate == null ? '' : row.rate >= 0 ? 'pnl-positive' : 'pnl-negative'}`.trim()}>
+                {row.rate == null ? '—' : fmtPercent(row.rate * 100)}
               </span>
             </div>
           ))}
         </>
       )}
 
-      <div className="panel-title">Recent Syncs</div>
-      {bootstrap.recentSyncJobs.slice(0, 5).map((job) => (
+      <div className="panel-title">{position ? 'Account Syncs' : 'Recent Syncs'}</div>
+      {relevantSyncJobs.slice(0, 5).map((job) => (
         <div key={job.id} className="sync-log-item">
           <div className="sync-log-header">
             <span className={`sync-dot ${job.state === 'success' ? 'sync-dot--synced' : job.state === 'failed' ? 'sync-dot--degraded' : 'sync-dot--syncing'}`} />
@@ -258,8 +275,10 @@ function BottomPanels({ bootstrap, onReset }: { bootstrap: NonNullable<ReturnTyp
           </div>
         </div>
       ))}
-      {bootstrap.recentSyncJobs.length === 0 && (
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '4px 0' }}>No sync jobs yet</div>
+      {relevantSyncJobs.length === 0 && (
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '4px 0' }}>
+          {position ? 'No recent syncs for this account' : 'No sync jobs yet'}
+        </div>
       )}
 
       <div className="panel-title">LAN Projection</div>

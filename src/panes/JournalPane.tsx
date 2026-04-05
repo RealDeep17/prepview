@@ -56,7 +56,20 @@ export function JournalPane({ showClosed }: Props) {
 
     return (
       <>
-        <table className="data-table">
+        <table className="data-table data-table--journal">
+          <colgroup>
+            <col style={{ width: '132px' }} />
+            <col style={{ width: '116px' }} />
+            <col style={{ width: '168px' }} />
+            <col style={{ width: '78px' }} />
+            <col style={{ width: '108px' }} />
+            <col style={{ width: '114px' }} />
+            <col style={{ width: '114px' }} />
+            <col style={{ width: '72px' }} />
+            <col style={{ width: '128px' }} />
+            <col style={{ width: '118px' }} />
+            <col style={{ width: '118px' }} />
+          </colgroup>
           <thead>
             <tr>
               <th>Closed</th>
@@ -75,9 +88,9 @@ export function JournalPane({ showClosed }: Props) {
           <tbody>
             {closed.map((trade) => (
               <tr key={trade.id}>
-                <td>{fmtTimestamp(trade.closedAt)}</td>
-                <td className="mono" style={{ fontWeight: 600 }}>{trade.symbol}</td>
-                <td>{trade.accountName}</td>
+                <td><span className="table-text">{fmtTimestamp(trade.closedAt)}</span></td>
+                <td><span className="table-text table-text--strong mono">{trade.symbol}</span></td>
+                <td><span className="table-text">{trade.accountName}</span></td>
                 <td>
                   <span className={`side-tag side-tag--${trade.side}`}>
                     {trade.side === 'long' ? 'Long' : 'Short'}
@@ -100,7 +113,7 @@ export function JournalPane({ showClosed }: Props) {
           </tbody>
         </table>
         {hasMoreClosed && (
-          <div style={{ padding: 12, textAlign: 'center' }}>
+          <div className="pane-footer">
             <button className="btn btn--ghost btn--small" onClick={loadMoreClosed} disabled={loadingMore}>
               {loadingMore ? 'Loading…' : 'Load More'}
             </button>
@@ -121,7 +134,18 @@ export function JournalPane({ showClosed }: Props) {
 
   return (
     <>
-      <table className="data-table">
+      <table className="data-table data-table--journal">
+        <colgroup>
+          <col style={{ width: '132px' }} />
+          <col style={{ width: '110px' }} />
+          <col style={{ width: '116px' }} />
+          <col style={{ width: '168px' }} />
+          <col style={{ width: '70px' }} />
+          <col style={{ width: '108px' }} />
+          <col style={{ width: '114px' }} />
+          <col style={{ width: '114px' }} />
+          <col style={{ width: '128px' }} />
+        </colgroup>
         <thead>
           <tr>
             <th>Time</th>
@@ -138,14 +162,14 @@ export function JournalPane({ showClosed }: Props) {
         <tbody>
           {events.map((event) => (
             <tr key={event.id}>
-              <td>{fmtTimestamp(event.eventTime)}</td>
+              <td><span className="table-text">{fmtTimestamp(event.eventTime)}</span></td>
               <td>
                 <span className={`event-badge event-badge--${event.eventKind}`}>
                   {event.eventKind}
                 </span>
               </td>
-              <td className="mono" style={{ fontWeight: 600 }}>{event.symbol}</td>
-              <td>{event.accountName}</td>
+              <td><span className="table-text table-text--strong mono">{event.symbol}</span></td>
+              <td><span className="table-text">{event.accountName}</span></td>
               <td>
                 <span className={`side-tag side-tag--${event.side}`}>
                   {event.side === 'long' ? 'L' : 'S'}
@@ -167,7 +191,7 @@ export function JournalPane({ showClosed }: Props) {
         </tbody>
       </table>
       {hasMoreEvents && (
-        <div style={{ padding: 12, textAlign: 'center' }}>
+        <div className="pane-footer">
           <button className="btn btn--ghost btn--small" onClick={loadMoreEvents} disabled={loadingMore}>
             {loadingMore ? 'Loading…' : 'Load More'}
           </button>

@@ -14,7 +14,7 @@ import { AddPositionOverlay } from '../overlays/AddPositionOverlay';
 import { EditPositionOverlay } from '../overlays/EditPositionOverlay';
 import { EditAccountOverlay } from '../overlays/EditAccountOverlay';
 import { CsvImportOverlay } from '../overlays/CsvImportOverlay';
-import { POSITION_COLUMN_OPTIONS, type PositionColumnKey } from '../lib/positionView';
+import { POSITION_COLUMN_OPTIONS } from '../lib/positionView';
 
 const tabs = [
   { key: 'positions' as const, label: 'Positions' },
@@ -34,13 +34,10 @@ export function WorkstationShell() {
   const leftPanelOpen  = useAppStore((s) => s.leftPanelOpen);
   const rightPanelOpen = useAppStore((s) => s.rightPanelOpen);
   const positionColumns = useAppStore((s) => s.positionColumns);
-  const positionSortKey = useAppStore((s) => s.positionSortKey);
-  const positionSortDirection = useAppStore((s) => s.positionSortDirection);
   const addPositionColumn = useAppStore((s) => s.addPositionColumn);
   const removePositionColumn = useAppStore((s) => s.removePositionColumn);
   const movePositionColumn = useAppStore((s) => s.movePositionColumn);
-  const setPositionSort = useAppStore((s) => s.setPositionSort);
-  const resetPositionView = useAppStore((s) => s.resetPositionView);
+  const resetPositionColumns = useAppStore((s) => s.resetPositionColumns);
   const [showPositionColumns, setShowPositionColumns] = useState(false);
   const positionColumnsRef = useRef<HTMLDivElement | null>(null);
 
@@ -48,9 +45,10 @@ export function WorkstationShell() {
     () => POSITION_COLUMN_OPTIONS.filter((option) => !positionColumns.includes(option.key)),
     [positionColumns],
   );
+  const positionColumnsOpen = activeTab === 'positions' && showPositionColumns;
 
   useEffect(() => {
-    if (!showPositionColumns) return;
+    if (!positionColumnsOpen) return;
 
     const handlePointerDown = (event: MouseEvent) => {
       if (!positionColumnsRef.current) return;
@@ -60,11 +58,7 @@ export function WorkstationShell() {
 
     document.addEventListener('mousedown', handlePointerDown);
     return () => document.removeEventListener('mousedown', handlePointerDown);
-  }, [showPositionColumns]);
-
-  useEffect(() => {
-    setShowPositionColumns(false);
-  }, [activeTab]);
+  }, [positionColumnsOpen]);
 
   return (
     <>
@@ -86,44 +80,29 @@ export function WorkstationShell() {
             <div className="tab-bar">
               <div className="tab-bar-left">
                 {tabs.map((tab) => (
-                  <div
+                  <button
                     key={tab.key}
+                    type="button"
                     className={`tab-item${activeTab === tab.key ? ' tab-item--active' : ''}`}
-                    onClick={() => setActiveTab(tab.key)}
+                    onClick={() => {
+                      setShowPositionColumns(false);
+                      setActiveTab(tab.key);
+                    }}
                   >
                     {tab.label}
-                  </div>
+                  </button>
                 ))}
               </div>
               {activeTab === 'positions' && (
                 <div className="tab-bar-right">
-                  <select
-                    className="tab-control-select"
-                    value={positionSortKey ?? ''}
-                    onChange={(e) => setPositionSort(e.target.value ? e.target.value as PositionColumnKey : null)}
-                  >
-                    <option value="">Sort: Default</option>
-                    {POSITION_COLUMN_OPTIONS.map((option) => (
-                      <option key={option.key} value={option.key}>
-                        Sort: {option.label}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    className="tab-control-btn"
-                    onClick={() => setPositionSort(positionSortKey, positionSortDirection === 'asc' ? 'desc' : 'asc')}
-                    disabled={!positionSortKey}
-                  >
-                    {positionSortDirection === 'asc' ? 'Asc' : 'Desc'}
-                  </button>
                   <div className="tab-control-popover-wrap" ref={positionColumnsRef}>
                     <button
-                      className={`tab-control-btn${showPositionColumns ? ' tab-control-btn--active' : ''}`}
+                      className={`tab-control-btn${positionColumnsOpen ? ' tab-control-btn--active' : ''}`}
                       onClick={() => setShowPositionColumns((value) => !value)}
                     >
                       Columns
                     </button>
-                    {showPositionColumns && (
+                    {positionColumnsOpen && (
                       <div className="tab-control-popover">
                         <div className="tab-control-section">
                           <div className="tab-control-title">Visible</div>
@@ -133,7 +112,7 @@ export function WorkstationShell() {
 
                             return (
                               <div key={column} className="tab-control-row">
-                                <span>{option.label}</span>
+                                <span className="tab-control-row-label">{option.label}</span>
                                 <div className="tab-control-actions">
                                   <button className="tab-control-mini" onClick={() => movePositionColumn(column, 'left')} disabled={index === 0}>↑</button>
                                   <button className="tab-control-mini" onClick={() => movePositionColumn(column, 'right')} disabled={index === positionColumns.length - 1}>↓</button>
@@ -144,14 +123,14 @@ export function WorkstationShell() {
                           })}
                         </div>
                         <div className="tab-control-section">
-                          <div className="tab-control-title">Available</div>
-                          {hiddenColumns.length > 0 ? hiddenColumns.map((option) => (
-                            <div key={option.key} className="tab-control-row">
-                              <span>{option.label}</span>
-                              <div className="tab-control-actions">
-                                <button className="tab-control-mini" onClick={() => addPositionColumn(option.key)}>Add</button>
-                              </div>
+                        <div className="tab-control-title">Available</div>
+                        {hiddenColumns.length > 0 ? hiddenColumns.map((option) => (
+                          <div key={option.key} className="tab-control-row">
+                            <span className="tab-control-row-label">{option.label}</span>
+                            <div className="tab-control-actions">
+                              <button className="tab-control-mini" onClick={() => addPositionColumn(option.key)}>Add</button>
                             </div>
+                          </div>
                           )) : (
                             <div className="tab-control-empty">All columns are visible.</div>
                           )}
@@ -160,11 +139,11 @@ export function WorkstationShell() {
                           <button
                             className="tab-control-btn tab-control-btn--full"
                             onClick={() => {
-                              resetPositionView();
+                              resetPositionColumns();
                               setShowPositionColumns(false);
                             }}
                           >
-                            Default
+                            Reset Columns
                           </button>
                         </div>
                       </div>

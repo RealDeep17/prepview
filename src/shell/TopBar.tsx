@@ -100,94 +100,107 @@ export function TopBar() {
 
   return (
     <div className="topbar">
-      <span className="topbar-logo">PREPVIEW</span>
-      <div className="scope-pills">
-        <button
-          className={`scope-pill${scopeExchange === 'all' ? ' scope-pill--active' : ''}`}
-          onClick={() => setScopeExchange('all')}
-        >
-          All
-        </button>
-        {uniqueExchanges.map((ex) => (
+      <div className="topbar-primary">
+        <span className="topbar-logo">PREPVIEW</span>
+        <div className="scope-pills">
           <button
-            key={ex}
-            className={`scope-pill${scopeExchange === ex ? ' scope-pill--active' : ''}`}
-            onClick={() => setScopeExchange(ex as ExchangeKind)}
+            className={`scope-pill${scopeExchange === 'all' ? ' scope-pill--active' : ''}`}
+            onClick={() => setScopeExchange('all')}
           >
-            {ex === 'blofin' ? 'BloFin' : ex === 'hyperliquid' ? 'Hyperliquid' : ex === 'manual' ? 'Manual' : ex}
+            All
           </button>
-        ))}
+          {uniqueExchanges.map((ex) => (
+            <button
+              key={ex}
+              className={`scope-pill${scopeExchange === ex ? ' scope-pill--active' : ''}`}
+              onClick={() => setScopeExchange(ex as ExchangeKind)}
+            >
+              {ex === 'blofin' ? 'BloFin' : ex === 'hyperliquid' ? 'Hyperliquid' : ex === 'manual' ? 'Manual' : ex}
+            </button>
+          ))}
+        </div>
       </div>
-      <span className="topbar-spacer" />
 
-      {/* Zoom dropdown */}
-      <div className="zoom-dropdown" ref={zoomRef}>
-        <button
-          className="btn btn--ghost btn--small zoom-trigger"
-          onClick={() => setZoomOpen(!zoomOpen)}
-          title="UI Scale"
-        >
-          {Math.round(zoom * 100)}%
-        </button>
-        {zoomOpen && (
-          <div className="zoom-popover">
-            <div className="zoom-popover-label">UI Scale</div>
-            {ZOOM_LEVELS.map((level) => (
-              <button
-                key={level}
-                className={`zoom-popover-item${zoom === level ? ' zoom-popover-item--active' : ''}`}
-                onClick={() => handleZoom(level)}
-              >
-                {Math.round(level * 100)}%
-                {level === 1 && <span className="zoom-default-badge">default</span>}
-              </button>
-            ))}
+      <div className="topbar-secondary">
+        <div className="topbar-view-controls">
+          {/* Zoom dropdown */}
+          <div className="zoom-dropdown" ref={zoomRef}>
+            <button
+              className="btn btn--ghost btn--small zoom-trigger"
+              onClick={() => setZoomOpen(!zoomOpen)}
+              title="UI Scale"
+            >
+              {Math.round(zoom * 100)}%
+            </button>
+            {zoomOpen && (
+              <div className="zoom-popover">
+                <div className="zoom-popover-label">UI Scale</div>
+                {ZOOM_LEVELS.map((level) => (
+                  <button
+                    key={level}
+                    className={`zoom-popover-item${zoom === level ? ' zoom-popover-item--active' : ''}`}
+                    onClick={() => handleZoom(level)}
+                  >
+                    {Math.round(level * 100)}%
+                    {level === 1 && <span className="zoom-default-badge">default</span>}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      {/* Layout panel toggles — IDE style, next to zoom */}
-      <div className="layout-toggles">
-        <button
-          className={`layout-toggle-btn${leftPanelOpen ? ' active' : ''}`}
-          onClick={toggleLeftPanel}
-          title={leftPanelOpen ? 'Hide accounts panel' : 'Show accounts panel'}
-        >
-          <IconLeft active={leftPanelOpen} />
-        </button>
-        <button
-          className={`layout-toggle-btn${chartOpen ? ' active' : ''}`}
-          onClick={toggleChart}
-          title={chartOpen ? 'Hide charts' : 'Show charts'}
-        >
-          <IconBottom active={chartOpen} />
-        </button>
-        <button
-          className={`layout-toggle-btn${rightPanelOpen ? ' active' : ''}`}
-          onClick={toggleRightPanel}
-          title={rightPanelOpen ? 'Hide detail panel' : 'Show detail panel'}
-        >
-          <IconRight active={rightPanelOpen} />
-        </button>
-      </div>
-      <div className="sync-badge" onClick={handleSyncAll} style={{ cursor: 'pointer' }} title="Click to sync all">
-        <span className={`sync-dot ${dotClass}`} />
-        <span>{sync?.label ?? 'local'}</span>
-        {countdownValue !== null && <span>· {countdownValue}s</span>}
-      </div>
+          {/* Layout panel toggles — IDE style, next to zoom */}
+          <div className="layout-toggles">
+            <button
+              className={`layout-toggle-btn${leftPanelOpen ? ' active' : ''}`}
+              onClick={toggleLeftPanel}
+              title={leftPanelOpen ? 'Hide accounts panel' : 'Show accounts panel'}
+            >
+              <IconLeft active={leftPanelOpen} />
+            </button>
+            <button
+              className={`layout-toggle-btn${chartOpen ? ' active' : ''}`}
+              onClick={toggleChart}
+              title={chartOpen ? 'Hide charts' : 'Show charts'}
+            >
+              <IconBottom active={chartOpen} />
+            </button>
+            <button
+              className={`layout-toggle-btn${rightPanelOpen ? ' active' : ''}`}
+              onClick={toggleRightPanel}
+              title={rightPanelOpen ? 'Hide detail panel' : 'Show detail panel'}
+            >
+              <IconRight active={rightPanelOpen} />
+            </button>
+          </div>
 
-      <button className="btn btn--ghost btn--small" onClick={handleRefreshQuotes} title="Refresh quotes">
-        ↻
-      </button>
-      <button className="btn btn--ghost" onClick={() => openOverlay('csv-import')}>
-        Import CSV
-      </button>
-      <button className="btn btn--ghost" onClick={() => openOverlay('add-position')}>
-        + Position
-      </button>
-      <button className="btn btn--primary" onClick={() => openOverlay('add-account')}>
-        + Account
-      </button>
+          <button
+            type="button"
+            className="sync-badge sync-badge--interactive"
+            onClick={handleSyncAll}
+            title="Click to sync all"
+          >
+            <span className={`sync-dot ${dotClass}`} />
+            <span>{sync?.label ?? 'local'}</span>
+            {countdownValue !== null && <span>· {countdownValue}s</span>}
+          </button>
+        </div>
+
+        <div className="topbar-actions">
+          <button className="btn btn--ghost btn--small" onClick={handleRefreshQuotes} title="Refresh quotes">
+            ↻
+          </button>
+          <button className="btn btn--ghost" onClick={() => openOverlay('csv-import')}>
+            Import CSV
+          </button>
+          <button className="btn btn--ghost" onClick={() => openOverlay('add-position')}>
+            + Position
+          </button>
+          <button className="btn btn--primary" onClick={() => openOverlay('add-account')}>
+            + Account
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

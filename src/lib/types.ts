@@ -8,6 +8,7 @@ export type SyncHealthState = 'local' | 'awaiting' | 'syncing' | 'stale' | 'degr
 export type MarginMode = 'cross' | 'isolated';
 export type PositionEventKind = 'opened' | 'adjusted' | 'closed' | 'imported';
 export type PositionRiskSource = 'live_exchange' | 'user_input' | 'local_engine';
+export type FundingMode = 'manual' | 'auto' | 'exchange_sync';
 
 export interface ClosedTradeRecord {
   id: string;
@@ -98,6 +99,7 @@ export interface PortfolioPosition {
   realizedPnl: number;
   feePaid: number;
   fundingPaid: number;
+  fundingMode: FundingMode;
   takeProfit?: number | null;
   stopLoss?: number | null;
   openedAt: string;
@@ -250,8 +252,10 @@ export interface ManualPositionInput {
   realizedPnl?: number;
   feePaid?: number;
   fundingPaid?: number;
+  fundingMode?: FundingMode | null;
   takeProfit?: number;
   stopLoss?: number;
+  openedAt?: string;
   notes?: string;
 }
 
@@ -272,9 +276,27 @@ export interface UpdateManualPositionInput {
   realizedPnl?: number;
   feePaid?: number;
   fundingPaid?: number;
+  fundingMode?: FundingMode | null;
   takeProfit?: number;
   stopLoss?: number;
+  openedAt?: string;
   notes?: string;
+}
+
+export interface PositionFundingEstimateInput {
+  exchange: Extract<ExchangeKind, 'blofin' | 'hyperliquid'>;
+  exchangeSymbol?: string;
+  symbol: string;
+  side: PositionSide;
+  quantity: number;
+  openedAt: string;
+}
+
+export interface PositionFundingEstimate {
+  fundingPaid: number;
+  settlements: number;
+  estimated: boolean;
+  asOf: string;
 }
 
 export interface CsvImportInput {

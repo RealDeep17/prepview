@@ -19,7 +19,8 @@ use crate::{
     domain::{
         AccountSnapshot, BalanceEvent, CreateLiveAccountInput, ExchangeKind, ExchangeMarket,
         ExchangeRiskTier, FundingEntry, LiveAccountValidation, MarginMode, MarkPriceUpdate,
-        MarketQuote, PositionRiskSource, PositionSide, RiskTierBasis, SyncedPosition,
+        MarketQuote, PositionFundingEstimate, PositionRiskSource, PositionSide, RiskTierBasis,
+        SyncedPosition,
     },
     error::{invalid_input, AppError, AppResult},
 };
@@ -28,6 +29,7 @@ type HmacSha256 = Hmac<Sha256>;
 
 const HYPERLIQUID_INFO_URL: &str = "https://api.hyperliquid.xyz/info";
 const BLOFIN_REST_BASE: &str = "https://openapi.blofin.com";
+const SUPPORTED_HYPERLIQUID_HIP3_DEXS: [&str; 1] = ["xyz"];
 
 #[async_trait]
 pub trait ExchangeConnector: Send + Sync {
@@ -141,6 +143,49 @@ pub async fn fetch_exchange_risk_tiers(
     }
 }
 
+pub async fn estimate_public_position_funding(
+    client: Client,
+    exchange: ExchangeKind,
+    exchange_symbol: &str,
+    side: PositionSide,
+    quantity: f64,
+    contract_value: Option<f64>,
+    opened_at: DateTime<Utc>,
+    as_of: DateTime<Utc>,
+) -> AppResult<PositionFundingEstimate> {
+    match exchange {
+        ExchangeKind::Blofin => {
+            let connector = BlofinConnector::new(client);
+            connector
+                .estimate_public_position_funding(
+                    exchange_symbol,
+                    side,
+                    quantity,
+                    contract_value.unwrap_or(1.0),
+                    opened_at,
+                    as_of,
+                )
+                .await
+        }
+        ExchangeKind::Hyperliquid => {
+            let connector = HyperliquidConnector::new(client);
+            connector
+                .estimate_public_position_funding(
+                    exchange_symbol,
+                    side,
+                    quantity,
+                    contract_value.unwrap_or(1.0),
+                    opened_at,
+                    as_of,
+                )
+                .await
+        }
+        _ => Err(invalid_input(
+            "automatic funding is only available for BloFin and Hyperliquid positions",
+        )),
+    }
+}
+
 #[derive(Clone)]
 struct HyperliquidConnector {
     client: Client,
@@ -154,13 +199,16 @@ impl HyperliquidConnector {
     async fn fetch_clearinghouse_state(
         &self,
         wallet_address: &str,
+        dex: Option<&str>,
     ) -> AppResult<HyperliquidClearinghouseState> {
+        let mut payload = serde_json::json!({
+            "type": "clearinghouseState",
+            "user": wallet_address,
+        });
+        insert_hyperliquid_dex(&mut payload, dex);
         self.client
             .post(HYPERLIQUID_INFO_URL)
-            .json(&serde_json::json!({
-                "type": "clearinghouseState",
-                "user": wallet_address,
-            }))
+            .json(&payload)
             .send()
             .await?
             .error_for_status()?
@@ -169,13 +217,18 @@ impl HyperliquidConnector {
             .map_err(Into::into)
     }
 
-    async fn fetch_all_mids_map(&self) -> AppResult<serde_json::Map<String, serde_json::Value>> {
+    async fn fetch_all_mids_map(
+        &self,
+        dex: Option<&str>,
+    ) -> AppResult<serde_json::Map<String, serde_json::Value>> {
+        let mut payload = serde_json::json!({
+            "type": "allMids",
+        });
+        insert_hyperliquid_dex(&mut payload, dex);
         let value = self
             .client
             .post(HYPERLIQUID_INFO_URL)
-            .json(&serde_json::json!({
-                "type": "allMids",
-            }))
+            .json(&payload)
             .send()
             .await?
             .error_for_status()?
@@ -186,6 +239,74 @@ impl HyperliquidConnector {
             .as_object()
             .cloned()
             .ok_or_else(|| AppError::message("Hyperliquid allMids response was not an object"))
+    }
+
+    async fn fetch_supported_hip3_dexes(&self) -> Vec<String> {
+        let discovered = self
+            .fetch_perp_dexs()
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|dex| normalized_hyperliquid_dex(dex.name.as_str()))
+            .collect::<HashSet<_>>();
+
+        SUPPORTED_HYPERLIQUID_HIP3_DEXS
+            .iter()
+            .filter(|dex| discovered.is_empty() || discovered.contains(**dex))
+            .map(|dex| (*dex).to_string())
+            .collect()
+    }
+
+    async fn fetch_supported_clearinghouse_states(
+        &self,
+        wallet_address: &str,
+    ) -> AppResult<Vec<HyperliquidClearinghouseState>> {
+        let mut dexs = Vec::with_capacity(1 + SUPPORTED_HYPERLIQUID_HIP3_DEXS.len());
+        dexs.push(None);
+        dexs.extend(
+            self.fetch_supported_hip3_dexes()
+                .await
+                .into_iter()
+                .map(Some),
+        );
+
+        futures_util::future::try_join_all(
+            dexs.iter()
+                .map(|dex| self.fetch_clearinghouse_state(wallet_address, dex.as_deref())),
+        )
+        .await
+    }
+
+    async fn fetch_supported_position_contexts(
+        &self,
+        wallet_address: &str,
+    ) -> AppResult<
+        Vec<(
+            HyperliquidClearinghouseState,
+            serde_json::Map<String, serde_json::Value>,
+        )>,
+    > {
+        let mut dexs = Vec::with_capacity(1 + SUPPORTED_HYPERLIQUID_HIP3_DEXS.len());
+        dexs.push(None);
+        dexs.extend(
+            self.fetch_supported_hip3_dexes()
+                .await
+                .into_iter()
+                .map(Some),
+        );
+
+        let states = futures_util::future::try_join_all(
+            dexs.iter()
+                .map(|dex| self.fetch_clearinghouse_state(wallet_address, dex.as_deref())),
+        )
+        .await?;
+        let mids = futures_util::future::try_join_all(
+            dexs.iter()
+                .map(|dex| self.fetch_all_mids_map(dex.as_deref())),
+        )
+        .await?;
+
+        Ok(states.into_iter().zip(mids).collect())
     }
 
     async fn fetch_predicted_fundings(
@@ -255,17 +376,154 @@ impl HyperliquidConnector {
             .map_err(Into::into)
     }
 
+    async fn fetch_spot_clearinghouse_state(
+        &self,
+        wallet_address: &str,
+    ) -> AppResult<HyperliquidSpotClearinghouseState> {
+        self.client
+            .post(HYPERLIQUID_INFO_URL)
+            .json(&serde_json::json!({
+                "type": "spotClearinghouseState",
+                "user": wallet_address,
+            }))
+            .send()
+            .await?
+            .error_for_status()?
+            .json::<HyperliquidSpotClearinghouseState>()
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn fetch_funding_history(
+        &self,
+        exchange_symbol: &str,
+        start_time: DateTime<Utc>,
+    ) -> AppResult<Vec<HyperliquidFundingHistoryPoint>> {
+        let coin = hyperliquid_api_coin_symbol(exchange_symbol);
+        self.client
+            .post(HYPERLIQUID_INFO_URL)
+            .json(&serde_json::json!({
+                "type": "fundingHistory",
+                "coin": coin,
+                "startTime": start_time.timestamp_millis(),
+            }))
+            .send()
+            .await?
+            .error_for_status()?
+            .json::<Vec<HyperliquidFundingHistoryPoint>>()
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn fetch_candle_snapshot(
+        &self,
+        exchange_symbol: &str,
+        interval: &str,
+        start_time: DateTime<Utc>,
+        end_time: DateTime<Utc>,
+    ) -> AppResult<Vec<HyperliquidCandle>> {
+        let coin = hyperliquid_api_coin_symbol(exchange_symbol);
+        self.client
+            .post(HYPERLIQUID_INFO_URL)
+            .json(&serde_json::json!({
+                "type": "candleSnapshot",
+                "req": {
+                    "coin": coin,
+                    "interval": interval,
+                    "startTime": start_time.timestamp_millis(),
+                    "endTime": end_time.timestamp_millis(),
+                }
+            }))
+            .send()
+            .await?
+            .error_for_status()?
+            .json::<Vec<HyperliquidCandle>>()
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn estimate_public_position_funding(
+        &self,
+        exchange_symbol: &str,
+        side: PositionSide,
+        quantity: f64,
+        contract_value: f64,
+        opened_at: DateTime<Utc>,
+        as_of: DateTime<Utc>,
+    ) -> AppResult<PositionFundingEstimate> {
+        let funding_rows = self
+            .fetch_funding_history(exchange_symbol, opened_at)
+            .await?;
+        let funding_rows = funding_rows
+            .into_iter()
+            .filter(|row| {
+                row.time >= opened_at.timestamp_millis() && row.time <= as_of.timestamp_millis()
+            })
+            .collect::<Vec<_>>();
+        if funding_rows.is_empty() {
+            return Ok(PositionFundingEstimate {
+                funding_paid: 0.0,
+                settlements: 0,
+                estimated: true,
+                as_of,
+            });
+        }
+
+        let candle_end = as_of + chrono::Duration::hours(1);
+        let candles = self
+            .fetch_candle_snapshot(exchange_symbol, "1h", opened_at, candle_end)
+            .await?;
+        let funding_paid = compute_funding_paid_from_samples(
+            side,
+            quantity,
+            contract_value,
+            funding_rows.iter().map(|row| FundingSample {
+                funding_time: row.time,
+                funding_rate: parse_decimal(Some(row.funding_rate.as_str())).unwrap_or(0.0),
+            }),
+            |sample_time| {
+                resolve_candle_price(
+                    candles.iter().map(|candle| CandleSample {
+                        start_time: candle.t,
+                        end_time: candle.t_end,
+                        open_price: parse_decimal(Some(candle.open.as_str())).unwrap_or(0.0),
+                        close_price: parse_decimal(Some(candle.close.as_str())).unwrap_or(0.0),
+                    }),
+                    sample_time,
+                )
+            },
+        );
+
+        Ok(PositionFundingEstimate {
+            funding_paid,
+            settlements: funding_rows.len(),
+            estimated: true,
+            as_of,
+        })
+    }
+
     #[allow(dead_code)]
     async fn fetch_mark_prices(&self, symbols: &[String]) -> AppResult<Vec<MarkPriceUpdate>> {
+        let requested_dexes = requested_hyperliquid_dexes(symbols);
+        if requested_dexes.is_empty() {
+            return Ok(Vec::new());
+        }
+
         let requested = symbols
             .iter()
             .map(|symbol| symbol.trim().to_uppercase())
             .collect::<HashSet<_>>();
-        let mids = self.fetch_all_mids_map().await?;
         let as_of = Utc::now();
+        let mids_maps = futures_util::future::try_join_all(
+            requested_dexes
+                .iter()
+                .map(|dex| self.fetch_all_mids_map(dex.as_deref())),
+        )
+        .await?;
 
-        Ok(mids
+        Ok(mids_maps
             .into_iter()
+            .flat_map(|mids| mids.into_iter())
             .filter_map(|(coin, value)| {
                 let normalized = self.normalize_symbol(&coin);
                 if requested.contains(&coin.to_uppercase()) || requested.contains(&normalized) {
@@ -331,8 +589,19 @@ impl ExchangeConnector for HyperliquidConnector {
             }
         };
 
-        let response = self.fetch_clearinghouse_state(wallet_address).await?;
-        Ok(parse_hyperliquid_snapshot(&response))
+        let spot_state = match self.fetch_spot_clearinghouse_state(wallet_address).await {
+            Ok(state) => Some(state),
+            Err(error) => {
+                log::warn!(
+                    "prepview hyperliquid spotClearinghouseState fetch failed; falling back to perp clearinghouseState: {error}"
+                );
+                None
+            }
+        };
+        let responses = self
+            .fetch_supported_clearinghouse_states(wallet_address)
+            .await?;
+        Ok(parse_hyperliquid_snapshot(spot_state.as_ref(), &responses))
     }
 
     async fn fetch_open_positions(
@@ -348,12 +617,14 @@ impl ExchangeConnector for HyperliquidConnector {
             }
         };
 
-        let (state, mids) = tokio::try_join!(
-            self.fetch_clearinghouse_state(wallet_address),
-            self.fetch_all_mids_map()
-        )?;
+        let contexts = self
+            .fetch_supported_position_contexts(wallet_address)
+            .await?;
 
-        Ok(parse_hyperliquid_positions(&state, &mids, self))
+        Ok(contexts
+            .iter()
+            .flat_map(|(state, mids)| parse_hyperliquid_positions(state, mids, self))
+            .collect())
     }
 
     async fn fetch_balance_history(
@@ -398,7 +669,6 @@ impl ExchangeConnector for HyperliquidConnector {
     }
 
     async fn fetch_markets(&self) -> AppResult<Vec<ExchangeMarket>> {
-        let dexs = self.fetch_perp_dexs().await.unwrap_or_default();
         let mut markets = Vec::new();
 
         // Always fetch the main DEX ("HL") because perpDexs might only contain HIP3 dexes.
@@ -407,15 +677,11 @@ impl ExchangeConnector for HyperliquidConnector {
         }
 
         // Fetch additional HIP3 DEXs
-        if !dexs.is_empty() {
-            const ALLOWED_HIP3: [&str; 1] = ["xyz"];
-            let futures = dexs.iter().filter_map(|dex| {
-                if ALLOWED_HIP3.contains(&dex.name.to_lowercase().as_str()) {
-                    Some(self.fetch_meta_and_asset_contexts(Some(dex.name.as_str())))
-                } else {
-                    None
-                }
-            });
+        let supported_hip3_dexes = self.fetch_supported_hip3_dexes().await;
+        if !supported_hip3_dexes.is_empty() {
+            let futures = supported_hip3_dexes
+                .iter()
+                .map(|dex| self.fetch_meta_and_asset_contexts(Some(dex.as_str())));
             let results = futures_util::future::join_all(futures).await;
             for payload in results.into_iter().flatten() {
                 markets.extend(parse_hyperliquid_markets(&payload, self));
@@ -680,6 +946,181 @@ impl BlofinConnector {
         )
         .await
     }
+
+    async fn fetch_funding_rate_history(
+        &self,
+        exchange_symbol: &str,
+        start_time: DateTime<Utc>,
+    ) -> AppResult<Vec<BlofinFundingRateRow>> {
+        const PAGE_LIMIT: usize = 100;
+        let limit = PAGE_LIMIT.to_string();
+        let mut cursor = None::<String>;
+        let mut rows = Vec::new();
+
+        loop {
+            let mut query = vec![("instId", exchange_symbol), ("limit", limit.as_str())];
+            if let Some(after) = cursor.as_deref() {
+                query.push(("after", after));
+            }
+
+            let page: Vec<BlofinFundingRateRow> = self
+                .public_get("/api/v1/market/funding-rate-history", &query)
+                .await?;
+            if page.is_empty() {
+                break;
+            }
+
+            let oldest_time = page
+                .last()
+                .map(|row| row.funding_time.clone())
+                .unwrap_or_default();
+
+            rows.extend(page.iter().filter_map(|row| {
+                let funding_time = row.funding_time.parse::<i64>().ok()?;
+                (funding_time >= start_time.timestamp_millis()).then(|| row.clone())
+            }));
+
+            let reached_start = oldest_time
+                .parse::<i64>()
+                .ok()
+                .map(|value| value <= start_time.timestamp_millis())
+                .unwrap_or(true);
+            if reached_start || page.len() < PAGE_LIMIT {
+                break;
+            }
+
+            cursor = Some(oldest_time);
+        }
+
+        Ok(rows)
+    }
+
+    async fn fetch_mark_price_candles(
+        &self,
+        exchange_symbol: &str,
+        bar: &str,
+        start_time: DateTime<Utc>,
+    ) -> AppResult<Vec<BlofinCandle>> {
+        const PAGE_LIMIT: usize = 500;
+        let limit = PAGE_LIMIT.to_string();
+        let mut cursor = None::<String>;
+        let mut rows = Vec::new();
+
+        loop {
+            let mut query = vec![
+                ("instId", exchange_symbol),
+                ("bar", bar),
+                ("limit", limit.as_str()),
+            ];
+            if let Some(after) = cursor.as_deref() {
+                query.push(("after", after));
+            }
+
+            let page: Vec<Vec<String>> = self
+                .public_get("/api/v1/market/mark-price-candles", &query)
+                .await?;
+            if page.is_empty() {
+                break;
+            }
+
+            let parsed_page = page
+                .into_iter()
+                .filter_map(|row| parse_blofin_candle_row(&row))
+                .collect::<Vec<_>>();
+            if parsed_page.is_empty() {
+                break;
+            }
+
+            let oldest_time = parsed_page.last().map(|row| row.ts).unwrap_or_default();
+            rows.extend(
+                parsed_page
+                    .iter()
+                    .filter(|row| row.ts >= start_time.timestamp_millis())
+                    .cloned(),
+            );
+
+            if oldest_time <= start_time.timestamp_millis() || parsed_page.len() < PAGE_LIMIT {
+                break;
+            }
+
+            cursor = Some(oldest_time.to_string());
+        }
+
+        Ok(rows)
+    }
+
+    async fn estimate_public_position_funding(
+        &self,
+        exchange_symbol: &str,
+        side: PositionSide,
+        quantity: f64,
+        contract_value: f64,
+        opened_at: DateTime<Utc>,
+        as_of: DateTime<Utc>,
+    ) -> AppResult<PositionFundingEstimate> {
+        let funding_rows = self
+            .fetch_funding_rate_history(exchange_symbol, opened_at)
+            .await?
+            .into_iter()
+            .filter(|row| {
+                row.funding_time
+                    .parse::<i64>()
+                    .ok()
+                    .map(|value| {
+                        value >= opened_at.timestamp_millis() && value <= as_of.timestamp_millis()
+                    })
+                    .unwrap_or(false)
+            })
+            .collect::<Vec<_>>();
+        if funding_rows.is_empty() {
+            return Ok(PositionFundingEstimate {
+                funding_paid: 0.0,
+                settlements: 0,
+                estimated: false,
+                as_of,
+            });
+        }
+
+        let funding_interval_ms = infer_funding_interval_ms(
+            funding_rows
+                .iter()
+                .filter_map(|row| row.funding_time.parse::<i64>().ok()),
+        )
+        .unwrap_or(8 * 60 * 60 * 1000);
+        let bar = blofin_bar_for_interval_ms(funding_interval_ms);
+        let candles = self
+            .fetch_mark_price_candles(exchange_symbol, bar, opened_at)
+            .await?;
+        let funding_paid = compute_funding_paid_from_samples(
+            side,
+            quantity,
+            contract_value,
+            funding_rows.iter().filter_map(|row| {
+                Some(FundingSample {
+                    funding_time: row.funding_time.parse::<i64>().ok()?,
+                    funding_rate: parse_decimal(Some(row.funding_rate.as_str())).unwrap_or(0.0),
+                })
+            }),
+            |sample_time| {
+                resolve_candle_price(
+                    candles.iter().map(|candle| CandleSample {
+                        start_time: candle.ts,
+                        end_time: candle.ts + funding_interval_ms - 1,
+                        open_price: candle.open,
+                        close_price: candle.close,
+                    }),
+                    sample_time,
+                )
+            },
+        );
+
+        Ok(PositionFundingEstimate {
+            funding_paid,
+            settlements: funding_rows.len(),
+            estimated: false,
+            as_of,
+        })
+    }
 }
 
 #[async_trait]
@@ -879,6 +1320,13 @@ fn parse_decimal(raw: Option<&str>) -> Option<f64> {
     raw.and_then(|value| value.parse::<f64>().ok())
 }
 
+fn parse_blofin_candle_row(row: &[String]) -> Option<BlofinCandle> {
+    let ts = row.first()?.parse::<i64>().ok()?;
+    let open = parse_decimal(row.get(1).map(String::as_str))?;
+    let close = parse_decimal(row.get(4).map(String::as_str))?;
+    Some(BlofinCandle { ts, open, close })
+}
+
 fn quantity_step_from_decimals(decimals: u32) -> f64 {
     10_f64.powi(-(decimals as i32))
 }
@@ -892,6 +1340,166 @@ fn normalized_hyperliquid_dex(dex: &str) -> Option<String> {
     }
 }
 
+fn requested_hyperliquid_dexes(symbols: &[String]) -> Vec<Option<String>> {
+    let mut include_main = false;
+    let mut requested = HashSet::<String>::new();
+
+    for symbol in symbols {
+        let exchange_symbol = hyperliquid_exchange_symbol(symbol);
+        if let Some((dex, _)) = exchange_symbol.split_once(':') {
+            if let Some(normalized) = normalized_hyperliquid_dex(dex) {
+                requested.insert(normalized);
+            } else {
+                include_main = true;
+            }
+        } else if !exchange_symbol.is_empty() {
+            include_main = true;
+        }
+    }
+
+    let mut requested = requested.into_iter().collect::<Vec<_>>();
+    requested.sort();
+
+    let mut dexs = Vec::with_capacity(requested.len() + usize::from(include_main));
+    if include_main {
+        dexs.push(None);
+    }
+    dexs.extend(requested.into_iter().map(Some));
+    dexs
+}
+
+#[derive(Clone, Copy)]
+struct FundingSample {
+    funding_time: i64,
+    funding_rate: f64,
+}
+
+#[derive(Clone, Copy)]
+struct CandleSample {
+    start_time: i64,
+    end_time: i64,
+    open_price: f64,
+    close_price: f64,
+}
+
+fn compute_funding_paid_from_samples<I, F>(
+    side: PositionSide,
+    quantity: f64,
+    contract_value: f64,
+    samples: I,
+    price_at: F,
+) -> f64
+where
+    I: IntoIterator<Item = FundingSample>,
+    F: Fn(i64) -> Option<f64>,
+{
+    let side_multiplier = match side {
+        PositionSide::Long => 1.0,
+        PositionSide::Short => -1.0,
+    };
+    let token_size = quantity.abs() * contract_value.abs();
+
+    samples.into_iter().fold(0.0, |total, sample| {
+        let Some(price) = price_at(sample.funding_time).filter(|price| *price > 0.0) else {
+            return total;
+        };
+        total + (side_multiplier * token_size * price.abs() * sample.funding_rate)
+    })
+}
+
+fn resolve_candle_price<I>(candles: I, sample_time: i64) -> Option<f64>
+where
+    I: IntoIterator<Item = CandleSample>,
+{
+    let mut latest_before = None::<(i64, f64)>;
+
+    for candle in candles {
+        if candle.start_time <= sample_time && sample_time <= candle.end_time {
+            if candle.open_price > 0.0 {
+                return Some(candle.open_price);
+            }
+            if candle.close_price > 0.0 {
+                return Some(candle.close_price);
+            }
+        }
+
+        let candidate_price = if candle.close_price > 0.0 {
+            Some(candle.close_price)
+        } else if candle.open_price > 0.0 {
+            Some(candle.open_price)
+        } else {
+            None
+        };
+        if candle.start_time <= sample_time {
+            if let Some(price) = candidate_price {
+                if latest_before
+                    .as_ref()
+                    .map(|(timestamp, _)| candle.start_time > *timestamp)
+                    .unwrap_or(true)
+                {
+                    latest_before = Some((candle.start_time, price));
+                }
+            }
+        }
+    }
+
+    latest_before.map(|(_, price)| price)
+}
+
+fn infer_funding_interval_ms<I>(times: I) -> Option<i64>
+where
+    I: IntoIterator<Item = i64>,
+{
+    let mut times = times.into_iter().collect::<Vec<_>>();
+    times.sort_unstable();
+    times.dedup();
+
+    times
+        .windows(2)
+        .filter_map(|window| {
+            let delta = window[1] - window[0];
+            (delta > 0).then_some(delta)
+        })
+        .min()
+}
+
+fn blofin_bar_for_interval_ms(interval_ms: i64) -> &'static str {
+    const HOUR_MS: i64 = 60 * 60 * 1000;
+    if interval_ms <= HOUR_MS {
+        "1H"
+    } else if interval_ms <= 2 * HOUR_MS {
+        "2H"
+    } else if interval_ms <= 4 * HOUR_MS {
+        "4H"
+    } else if interval_ms <= 6 * HOUR_MS {
+        "6H"
+    } else if interval_ms <= 8 * HOUR_MS {
+        "8H"
+    } else if interval_ms <= 12 * HOUR_MS {
+        "12H"
+    } else {
+        "1D"
+    }
+}
+
+fn hyperliquid_spot_usdc_total(spot_state: &HyperliquidSpotClearinghouseState) -> Option<f64> {
+    spot_state
+        .balances
+        .iter()
+        .find(|balance| balance.token == 0 || balance.coin.eq_ignore_ascii_case("USDC"))
+        .and_then(|balance| parse_decimal(Some(balance.total.as_str())))
+}
+
+fn hyperliquid_spot_usdc_available_after_maintenance(
+    spot_state: &HyperliquidSpotClearinghouseState,
+) -> Option<f64> {
+    spot_state
+        .token_to_available_after_maintenance
+        .iter()
+        .find(|(token, _)| *token == 0)
+        .and_then(|(_, value)| parse_decimal(Some(value.as_str())))
+}
+
 fn insert_hyperliquid_dex(payload: &mut serde_json::Value, dex: Option<&str>) {
     if let Some(normalized) = dex.and_then(normalized_hyperliquid_dex) {
         payload
@@ -903,6 +1511,15 @@ fn insert_hyperliquid_dex(payload: &mut serde_json::Value, dex: Option<&str>) {
 
 fn hyperliquid_exchange_symbol(raw: &str) -> String {
     raw.split('-').next().unwrap_or(raw).trim().to_uppercase()
+}
+
+fn hyperliquid_api_coin_symbol(raw: &str) -> String {
+    let normalized = hyperliquid_exchange_symbol(raw);
+    if let Some((dex, coin)) = normalized.split_once(':') {
+        format!("{}:{}", dex.to_lowercase(), coin.to_uppercase())
+    } else {
+        normalized
+    }
 }
 
 fn blofin_exchange_symbol(raw: &str) -> String {
@@ -920,9 +1537,34 @@ fn millis_to_datetime(raw: impl ToString) -> DateTime<Utc> {
         .unwrap_or_else(Utc::now)
 }
 
-fn parse_hyperliquid_snapshot(response: &HyperliquidClearinghouseState) -> AccountSnapshot {
-    let equity = parse_decimal(Some(response.margin_summary.account_value.as_str())).unwrap_or(0.0);
-    let available = parse_decimal(Some(response.withdrawable.as_str())).unwrap_or(0.0);
+fn parse_hyperliquid_snapshot(
+    spot_state: Option<&HyperliquidSpotClearinghouseState>,
+    responses: &[HyperliquidClearinghouseState],
+) -> AccountSnapshot {
+    let equity = responses
+        .iter()
+        .map(|response| {
+            parse_decimal(Some(response.margin_summary.account_value.as_str())).unwrap_or(0.0)
+        })
+        .sum();
+    let available = responses
+        .iter()
+        .map(|response| parse_decimal(Some(response.withdrawable.as_str())).unwrap_or(0.0))
+        .sum();
+
+    if let Some(spot_state) = spot_state {
+        let spot_total = hyperliquid_spot_usdc_total(spot_state);
+        let spot_available = hyperliquid_spot_usdc_available_after_maintenance(spot_state);
+        if let Some(total) = spot_total {
+            return AccountSnapshot {
+                wallet_balance: total,
+                available_balance: spot_available.unwrap_or(available),
+                snapshot_equity: total,
+                currency: "USDC".into(),
+            };
+        }
+    }
+
     AccountSnapshot {
         wallet_balance: equity,
         available_balance: available,
@@ -1123,16 +1765,13 @@ fn parse_hyperliquid_risk_tiers(
                 "Hyperliquid market {lookup} was not found in metadata"
             ))
         })?;
-    let parsed = if let Some((_, table)) = asset
-        .margin_table_id
-        .and_then(|margin_table_id| {
-            meta.margin_tables.as_ref().and_then(|margin_tables| {
-                margin_tables
-                    .iter()
-                    .find(|(table_id, _)| *table_id == margin_table_id)
-            })
+    let parsed = if let Some((_, table)) = asset.margin_table_id.and_then(|margin_table_id| {
+        meta.margin_tables.as_ref().and_then(|margin_tables| {
+            margin_tables
+                .iter()
+                .find(|(table_id, _)| *table_id == margin_table_id)
         })
-    {
+    }) {
         parse_hyperliquid_margin_tiers(&table.margin_tiers)
     } else {
         // HIP-3 DEX metadata can expose per-asset max leverage while returning an incomplete
@@ -1173,10 +1812,9 @@ fn parse_hyperliquid_risk_tiers(
     Ok(tiers)
 }
 
-fn parse_hyperliquid_margin_tiers(
-    tiers: &[HyperliquidMarginTier],
-) -> Vec<(usize, f64, f64, f64)> {
-    tiers.iter()
+fn parse_hyperliquid_margin_tiers(tiers: &[HyperliquidMarginTier]) -> Vec<(usize, f64, f64, f64)> {
+    tiers
+        .iter()
         .enumerate()
         .map(|(index, tier)| {
             (
@@ -1277,6 +1915,41 @@ struct HyperliquidFundingDetails {
     next_funding_time: i64,
 }
 
+#[derive(Debug, Deserialize)]
+struct HyperliquidFundingHistoryPoint {
+    #[allow(dead_code)]
+    coin: String,
+    #[serde(rename = "fundingRate")]
+    funding_rate: String,
+    time: i64,
+}
+
+#[derive(Debug, Deserialize)]
+struct HyperliquidCandle {
+    #[serde(rename = "t")]
+    t: i64,
+    #[serde(rename = "T")]
+    t_end: i64,
+    #[serde(rename = "o")]
+    open: String,
+    #[serde(rename = "c")]
+    close: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct HyperliquidSpotClearinghouseState {
+    balances: Vec<HyperliquidSpotBalance>,
+    #[serde(rename = "tokenToAvailableAfterMaintenance", default)]
+    token_to_available_after_maintenance: Vec<(u64, String)>,
+}
+
+#[derive(Debug, Deserialize)]
+struct HyperliquidSpotBalance {
+    coin: String,
+    token: u64,
+    total: String,
+}
+
 type HyperliquidMetaAndAssetCtxs = (HyperliquidMeta, Vec<HyperliquidAssetContext>);
 
 #[derive(Debug, Deserialize)]
@@ -1370,12 +2043,19 @@ struct BlofinPositionItem {
     leverage: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct BlofinFundingRateRow {
     inst_id: String,
     funding_rate: String,
     funding_time: String,
+}
+
+#[derive(Debug, Clone)]
+struct BlofinCandle {
+    ts: i64,
+    open: f64,
+    close: f64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1440,7 +2120,7 @@ mod tests {
         .expect("mids fixture should parse");
         let connector = HyperliquidConnector::new(test_client());
 
-        let snapshot = parse_hyperliquid_snapshot(&state);
+        let snapshot = parse_hyperliquid_snapshot(None, std::slice::from_ref(&state));
         let positions = parse_hyperliquid_positions(&state, &mids, &connector);
 
         assert_eq!(snapshot.currency, "USDC");
@@ -1536,6 +2216,52 @@ mod tests {
     }
 
     #[test]
+    fn computes_public_funding_paid_with_correct_long_short_signs() {
+        let samples = [
+            FundingSample {
+                funding_time: 1,
+                funding_rate: 0.01,
+            },
+            FundingSample {
+                funding_time: 2,
+                funding_rate: -0.02,
+            },
+        ];
+        let candles = [
+            CandleSample {
+                start_time: 0,
+                end_time: 1,
+                open_price: 100.0,
+                close_price: 101.0,
+            },
+            CandleSample {
+                start_time: 2,
+                end_time: 3,
+                open_price: 110.0,
+                close_price: 111.0,
+            },
+        ];
+
+        let long_paid = compute_funding_paid_from_samples(
+            PositionSide::Long,
+            2.0,
+            1.0,
+            samples,
+            |sample_time| resolve_candle_price(candles, sample_time),
+        );
+        let short_paid = compute_funding_paid_from_samples(
+            PositionSide::Short,
+            2.0,
+            1.0,
+            samples,
+            |sample_time| resolve_candle_price(candles, sample_time),
+        );
+
+        assert_close(long_paid, -2.4);
+        assert_close(short_paid, 2.4);
+    }
+
+    #[test]
     fn parses_hyperliquid_market_catalog_from_live_fixture() {
         let payload = serde_json::from_str::<HyperliquidMetaAndAssetCtxs>(include_str!(
             "fixtures/hyperliquid_meta_and_asset_ctxs_live.json"
@@ -1572,6 +2298,142 @@ mod tests {
         assert_eq!(normalized_hyperliquid_dex("XYZ").as_deref(), Some("xyz"));
         assert_eq!(normalized_hyperliquid_dex(" xyz ").as_deref(), Some("xyz"));
         assert_eq!(normalized_hyperliquid_dex("HL"), None);
+    }
+
+    #[test]
+    fn falls_back_to_aggregated_perp_equity_when_spot_state_is_missing() {
+        let main_state = serde_json::from_str::<HyperliquidClearinghouseState>(include_str!(
+            "fixtures/hyperliquid_clearinghouse_state.json"
+        ))
+        .expect("state fixture should parse");
+        let xyz_state =
+            serde_json::from_value::<HyperliquidClearinghouseState>(serde_json::json!({
+                "marginSummary": {
+                    "accountValue": "3000.0",
+                    "totalNtlPos": "0.0",
+                    "totalRawUsd": "3000.0",
+                    "totalMarginUsed": "0.0"
+                },
+                "withdrawable": "2500.0",
+                "assetPositions": [],
+            "time": 1775147868632_i64
+            }))
+            .expect("xyz state should parse");
+
+        let snapshot = parse_hyperliquid_snapshot(None, &[main_state, xyz_state]);
+
+        assert_close(snapshot.wallet_balance, 4956.393779);
+        assert_close(snapshot.available_balance, 2965.260446);
+        assert_close(snapshot.snapshot_equity, 4956.393779);
+        assert_eq!(snapshot.currency, "USDC");
+    }
+
+    #[test]
+    fn prefers_spot_collateral_totals_for_hyperliquid_snapshot() {
+        let perp_state = serde_json::from_str::<HyperliquidClearinghouseState>(include_str!(
+            "fixtures/hyperliquid_clearinghouse_state.json"
+        ))
+        .expect("state fixture should parse");
+        let xyz_state =
+            serde_json::from_value::<HyperliquidClearinghouseState>(serde_json::json!({
+                "marginSummary": {
+                    "accountValue": "433.287301",
+                    "totalNtlPos": "10823.25",
+                    "totalRawUsd": "-10389.962699",
+                    "totalMarginUsed": "541.1625"
+                },
+                "withdrawable": "0.0",
+                "assetPositions": [],
+                "time": 1775147868632_i64
+            }))
+            .expect("xyz state should parse");
+        let spot_state =
+            serde_json::from_value::<HyperliquidSpotClearinghouseState>(serde_json::json!({
+                "balances": [
+                    {
+                        "coin": "USDC",
+                        "token": 0,
+                        "total": "5607.074967"
+                    }
+                ],
+                "tokenToAvailableAfterMaintenance": [
+                    [0, "4867.689967"]
+                ]
+            }))
+            .expect("spot state should parse");
+
+        let snapshot = parse_hyperliquid_snapshot(Some(&spot_state), &[perp_state, xyz_state]);
+
+        assert_close(snapshot.wallet_balance, 5607.074967);
+        assert_close(snapshot.available_balance, 4867.689967);
+        assert_close(snapshot.snapshot_equity, 5607.074967);
+        assert_eq!(snapshot.currency, "USDC");
+    }
+
+    #[test]
+    fn includes_xyz_positions_when_hyperliquid_states_are_merged() {
+        let main_state = serde_json::from_str::<HyperliquidClearinghouseState>(include_str!(
+            "fixtures/hyperliquid_clearinghouse_state.json"
+        ))
+        .expect("state fixture should parse");
+        let main_mids = serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(
+            include_str!("fixtures/hyperliquid_all_mids.json"),
+        )
+        .expect("mids fixture should parse");
+        let xyz_state =
+            serde_json::from_value::<HyperliquidClearinghouseState>(serde_json::json!({
+                "marginSummary": {
+                    "accountValue": "3000.0",
+                    "totalNtlPos": "6950.325",
+                    "totalRawUsd": "3000.0",
+                    "totalMarginUsed": "695.0325"
+                },
+                "withdrawable": "2500.0",
+                "assetPositions": [
+                    {
+                        "position": {
+                            "coin": "xyz:GOLD",
+                            "szi": "1.5",
+                            "entryPx": "4600.0",
+                            "liquidationPx": "3900.0",
+                            "marginUsed": "695.0325",
+                            "leverage": {
+                                "type": "cross",
+                                "value": 10
+                            },
+                            "unrealizedPnl": "50.325",
+                            "cumFunding": {
+                                "sinceOpen": "-2.5"
+                            }
+                        }
+                    }
+                ],
+            "time": 1775147868632_i64
+            }))
+            .expect("xyz state should parse");
+        let xyz_mids = serde_json::from_value::<serde_json::Map<String, serde_json::Value>>(
+            serde_json::json!({
+                "xyz:GOLD": "4633.55"
+            }),
+        )
+        .expect("xyz mids should parse");
+        let connector = HyperliquidConnector::new(test_client());
+
+        let positions = [
+            parse_hyperliquid_positions(&main_state, &main_mids, &connector),
+            parse_hyperliquid_positions(&xyz_state, &xyz_mids, &connector),
+        ]
+        .concat();
+
+        assert_eq!(positions.len(), 2);
+        assert_eq!(positions[1].exchange_symbol, "XYZ:GOLD");
+        assert_eq!(positions[1].symbol, "XYZ:GOLD-PERP");
+        assert_eq!(positions[1].side, PositionSide::Long);
+        assert_eq!(positions[1].margin_mode, Some(MarginMode::Cross));
+        assert_close(
+            positions[1].mark_price.expect("mark price should exist"),
+            4633.55,
+        );
     }
 
     #[test]

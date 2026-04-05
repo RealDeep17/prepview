@@ -17,7 +17,13 @@ export function HistoryPane() {
   }
 
   return (
-    <table className="data-table">
+    <table className="data-table data-table--history">
+      <colgroup>
+        <col style={{ width: '136px' }} />
+        <col style={{ width: '132px' }} />
+        <col style={{ width: '132px' }} />
+        <col style={{ width: '132px' }} />
+      </colgroup>
       <thead>
         <tr>
           <th>Time</th>
@@ -32,7 +38,7 @@ export function HistoryPane() {
           const delta = prev ? point.equity - prev.equity : 0;
           return (
             <tr key={`${point.recordedAt}-${i}`}>
-              <td>{fmtTimestamp(point.recordedAt)}</td>
+              <td><span className="table-text">{fmtTimestamp(point.recordedAt)}</span></td>
               <td className="num">{fmtCurrency(point.balance)}</td>
               <td className="num">{fmtCurrency(point.equity)}</td>
               <td className={`num ${delta >= 0 ? 'pnl-positive' : 'pnl-negative'}`}>

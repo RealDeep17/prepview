@@ -21,15 +21,16 @@ use commands::{
     add_manual_position, close_manual_position, create_account, create_live_account,
     delete_account, delete_manual_position, get_bootstrap_state, get_closed_trades,
     get_exchange_market_quote, get_exchange_markets, get_position_events, import_csv_positions,
-    refresh_portfolio_quotes, reset_database, set_lan_projection, sync_all_live_accounts, sync_live_account,
-    update_account, update_manual_position, validate_live_account,
+    preview_position_funding, refresh_portfolio_quotes, reset_database, set_lan_projection,
+    sync_all_live_accounts, sync_live_account, update_account, update_manual_position,
+    validate_live_account,
 };
 use domain::{AutoSyncStatus, BootstrapState};
 use error::{AppError, AppResult};
 use lan::LanProjectionManager;
 use secret_store::{database_key, has_lan_passphrase};
 use store::PortfolioRepository;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use tokio::{
     sync::{broadcast, Mutex as AsyncMutex},
     time::{sleep, Duration},
@@ -45,6 +46,7 @@ pub(crate) struct AppServices {
     http_client: reqwest::Client,
     secrets_dir: PathBuf,
     sync_gate: AsyncMutex<()>,
+    app_handle: Option<tauri::AppHandle>,
 }
 
 impl AppServices {
@@ -69,8 +71,12 @@ impl AppServices {
     }
 
     fn emit_snapshot(&self) -> AppResult<()> {
-        let payload = serde_json::to_string(&self.snapshot()?)?;
+        let snapshot = self.snapshot()?;
+        let payload = serde_json::to_string(&snapshot)?;
         let _ = self.broadcaster.send(payload);
+        if let Some(app_handle) = &self.app_handle {
+            let _ = app_handle.emit("prepview://state-changed", snapshot);
+        }
         Ok(())
     }
 
@@ -116,6 +122,7 @@ fn build_services(app: &tauri::AppHandle) -> AppResult<Arc<AppServices>> {
             .build()?,
         secrets_dir,
         sync_gate: AsyncMutex::new(()),
+        app_handle: Some(app.clone()),
     }))
 }
 
@@ -283,6 +290,7 @@ pub fn run() {
             import_csv_positions,
             get_exchange_markets,
             get_exchange_market_quote,
+            preview_position_funding,
             refresh_portfolio_quotes,
             get_position_events,
             get_closed_trades,

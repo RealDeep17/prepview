@@ -76,11 +76,10 @@ export function AccountsRail() {
 
   return (
     <>
-      <div className="section-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 10px 0 12px' }}>
+      <div className="section-label account-section-header">
         <span>ACCOUNTS · {accounts.length}</span>
         <button
-          className="btn btn--ghost btn--small"
-          style={{ fontSize: 9, padding: '2px 6px', lineHeight: 1.2 }}
+          className="btn btn--ghost btn--small account-section-add"
           onClick={() => openOverlay('add-account')}
           title="New Account"
         >+ New</button>
@@ -118,8 +117,8 @@ export function AccountsRail() {
 
               {/* Utilization bar */}
               {utilizationPct > 0 && (
-                <div style={{ height: 2, borderRadius: 1, background: 'rgba(255,255,255,0.06)', margin: '4px 0', overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${utilizationPct * 100}%`, background: utilColor, borderRadius: 1, transition: 'width 0.3s ease' }} />
+                <div className="account-utilization">
+                  <div className="account-utilization-fill" style={{ width: `${utilizationPct * 100}%`, background: utilColor }} />
                 </div>
               )}
 
@@ -211,8 +210,8 @@ export function AccountsRail() {
       })}
 
       {accounts.length === 0 && (
-        <div style={{ padding: '20px 12px', textAlign: 'center' }}>
-          <div style={{ color: 'var(--text-muted)', fontSize: 11, marginBottom: 10 }}>No accounts yet</div>
+        <div className="rail-empty-state">
+          <div className="text-muted">No accounts yet</div>
           <button className="btn btn--primary btn--small" onClick={() => openOverlay('add-account')}>
             + Add Account
           </button>

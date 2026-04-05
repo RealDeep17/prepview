@@ -1,6 +1,5 @@
 export type PositionColumnKey =
   | 'symbol'
-  | 'account'
   | 'side'
   | 'margin'
   | 'size'
@@ -15,10 +14,11 @@ export type PositionColumnKey =
   | 'notional';
 
 export type PositionSortDirection = 'asc' | 'desc';
+export type PositionSideFilter = 'all' | 'long' | 'short';
+export type PositionPnlFilter = 'all' | 'winners' | 'losers';
 
 export const POSITION_COLUMN_OPTIONS: Array<{ key: PositionColumnKey; label: string }> = [
   { key: 'symbol', label: 'Symbol' },
-  { key: 'account', label: 'Account' },
   { key: 'side', label: 'Side' },
   { key: 'margin', label: 'Margin' },
   { key: 'size', label: 'Size' },
@@ -37,7 +37,6 @@ export const POSITION_COLUMN_KEYS = POSITION_COLUMN_OPTIONS.map((option) => opti
 
 export const DEFAULT_POSITION_COLUMNS: PositionColumnKey[] = [
   'symbol',
-  'account',
   'side',
   'margin',
   'size',

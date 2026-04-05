@@ -1,28 +1,66 @@
 import type { ExchangeKind, ExchangeMarket, SyncHealthState } from './types';
 
+const NUMBER_LOCALE = 'en-US';
+
+function formatNumber(value: number, options: Intl.NumberFormatOptions): string {
+  return new Intl.NumberFormat(NUMBER_LOCALE, options).format(value);
+}
+
+function getCompactCurrencyDigits(value: number): { minimumFractionDigits: number; maximumFractionDigits: number } {
+  const absolute = Math.abs(value);
+
+  if (absolute === 0) {
+    return { minimumFractionDigits: 2, maximumFractionDigits: 2 };
+  }
+  if (absolute >= 10000) {
+    return { minimumFractionDigits: 0, maximumFractionDigits: 0 };
+  }
+  if (absolute >= 1000) {
+    return { minimumFractionDigits: 0, maximumFractionDigits: 1 };
+  }
+  if (absolute >= 1) {
+    return { minimumFractionDigits: 0, maximumFractionDigits: 2 };
+  }
+  if (absolute >= 0.1) {
+    return { minimumFractionDigits: 2, maximumFractionDigits: 4 };
+  }
+  if (absolute >= 0.01) {
+    return { minimumFractionDigits: 2, maximumFractionDigits: 5 };
+  }
+  return { minimumFractionDigits: 0, maximumFractionDigits: 6 };
+}
+
+function getPercentDigits(value: number): number {
+  const absolute = Math.abs(value);
+
+  if (absolute >= 1) return 2;
+  if (absolute >= 0.1) return 2;
+  if (absolute >= 0.01) return 3;
+  if (absolute >= 0.001) return 4;
+  return 5;
+}
+
 export function fmtCurrency(n: number | null | undefined): string {
   if (n == null) return '—';
-  return new Intl.NumberFormat('en-US', {
+  return formatNumber(n, {
     style: 'currency',
     currency: 'USD',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(n);
+  });
 }
 
 export function fmtCompactCurrency(
   n: number | null | undefined,
 ): string {
   if (n == null) return '—';
-  const absolute = Math.abs(n);
-  const integerDigits = absolute >= 1 ? Math.floor(absolute).toString().length : 1;
-  const maximumFractionDigits = Math.min(2, Math.max(0, 5 - integerDigits));
-  return new Intl.NumberFormat('en-US', {
+  const { minimumFractionDigits, maximumFractionDigits } = getCompactCurrencyDigits(n);
+  return formatNumber(n, {
     style: 'currency',
     currency: 'USD',
-    minimumFractionDigits: 0,
+    minimumFractionDigits,
     maximumFractionDigits,
-  }).format(n);
+  });
 }
 
 export function fmtPnl(n: number | null | undefined): string {
@@ -43,23 +81,26 @@ export function fmtCostClass(n: number): string {
 
 export function fmtPercent(n: number | null | undefined): string {
   if (n == null) return '—';
-  return `${n.toFixed(2)}%`;
+  return `${formatNumber(n, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: getPercentDigits(n),
+  })}%`;
 }
 
 export function fmtNumber(n: number | null | undefined, decimals = 2): string {
   if (n == null) return '—';
-  return new Intl.NumberFormat('en-US', {
+  return formatNumber(n, {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
-  }).format(n);
+  });
 }
 
 export function fmtCompactNumber(n: number | null | undefined, decimals = 4): string {
   if (n == null) return '—';
-  return new Intl.NumberFormat('en-US', {
+  return formatNumber(n, {
     minimumFractionDigits: 0,
     maximumFractionDigits: decimals,
-  }).format(n);
+  });
 }
 
 function normalizeMarketId(value: string | null | undefined): string | null {

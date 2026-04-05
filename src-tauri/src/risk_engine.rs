@@ -1,6 +1,4 @@
-use crate::domain::{
-    ExchangeKind, ExchangeMarket, ExchangeRiskTier, PositionSide, RiskTierBasis,
-};
+use crate::domain::{ExchangeKind, ExchangeMarket, ExchangeRiskTier, PositionSide, RiskTierBasis};
 
 pub(crate) const BLOFIN_DEFAULT_LIQUIDATION_FEE_RATE: f64 = 0.0006;
 
@@ -18,10 +16,7 @@ pub(crate) fn contract_value_for_market(market: Option<&ExchangeMarket>) -> f64 
         .unwrap_or(1.0)
 }
 
-pub(crate) fn position_size_base_units(
-    quantity: f64,
-    market: Option<&ExchangeMarket>,
-) -> f64 {
+pub(crate) fn position_size_base_units(quantity: f64, market: Option<&ExchangeMarket>) -> f64 {
     quantity.abs() * contract_value_for_market(market)
 }
 
@@ -39,11 +34,7 @@ pub(crate) fn pnl_amount(
     }
 }
 
-pub(crate) fn notional_usd(
-    quantity: f64,
-    market: Option<&ExchangeMarket>,
-    price: f64,
-) -> f64 {
+pub(crate) fn notional_usd(quantity: f64, market: Option<&ExchangeMarket>, price: f64) -> f64 {
     position_size_base_units(quantity, market) * price.abs()
 }
 
@@ -70,7 +61,10 @@ pub(crate) fn select_risk_tier<'a>(
     };
 
     let mut selected = None;
-    for tier in tiers.iter().filter(|tier| tier.lower_bound <= metric + 1e-9) {
+    for tier in tiers
+        .iter()
+        .filter(|tier| tier.lower_bound <= metric + 1e-9)
+    {
         let basis_matches = match (exchange, tier.tier_basis) {
             (ExchangeKind::Blofin, RiskTierBasis::ExchangeQuantity) => true,
             (ExchangeKind::Hyperliquid, RiskTierBasis::NotionalUsd) => true,
@@ -143,12 +137,8 @@ pub(crate) fn estimate_blofin_liquidation_price(
     }
 
     let numerator = match side {
-        PositionSide::Long => {
-            collateral_pool - other_required - (size * entry_price)
-        }
-        PositionSide::Short => {
-            collateral_pool - other_required + (size * entry_price)
-        }
+        PositionSide::Long => collateral_pool - other_required - (size * entry_price),
+        PositionSide::Short => collateral_pool - other_required + (size * entry_price),
     };
     let denominator = match side {
         PositionSide::Long => {
@@ -220,9 +210,7 @@ pub(crate) fn estimate_hyperliquid_liquidation_price(
 
         let metric = match tier.tier_basis {
             RiskTierBasis::ExchangeQuantity => quantity.abs(),
-            RiskTierBasis::NotionalUsd => {
-                notional_usd(quantity, market, liquidation_price)
-            }
+            RiskTierBasis::NotionalUsd => notional_usd(quantity, market, liquidation_price),
         };
         let in_bounds = metric + 1e-9 >= tier.lower_bound
             && tier
@@ -351,10 +339,8 @@ mod tests {
         )
         .expect("tier should resolve");
 
-        let first_required =
-            maintenance_margin_amount(3000.0, Some(&market), 50_000.0, first);
-        let second_required =
-            maintenance_margin_amount(3000.0, Some(&market), 50_000.0, second);
+        let first_required = maintenance_margin_amount(3000.0, Some(&market), 50_000.0, first);
+        let second_required = maintenance_margin_amount(3000.0, Some(&market), 50_000.0, second);
 
         assert!((first_required - second_required).abs() < 1e-6);
     }

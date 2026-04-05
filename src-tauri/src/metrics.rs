@@ -3,9 +3,9 @@ use std::collections::BTreeMap;
 use chrono::{DateTime, Duration, Utc};
 
 use crate::domain::{
-    AccountMode, AccountSyncHealth, ExchangeAccount, ExposureItem, PerformanceMetrics,
-    PortfolioPosition, PortfolioSummary, PositionSide, SyncHealthState, SyncHealthSummary,
-    SyncHealthTone, SyncJobRecord, SyncJobState,
+    AccountMode, AccountSyncHealth, ClosedTradeRecord, ExchangeAccount, ExposureItem,
+    PerformanceMetrics, PortfolioPosition, PortfolioSummary, PositionSide, SyncHealthState,
+    SyncHealthSummary, SyncHealthTone, SyncJobRecord, SyncJobState,
 };
 
 const STALE_SYNC_WINDOW: Duration = Duration::minutes(15);
@@ -106,7 +106,12 @@ pub fn summarize_with_notionals(
     let gross_notional = positions
         .iter()
         .enumerate()
-        .map(|(index, position)| notionals.get(index).copied().unwrap_or_else(|| fallback_notional(position)))
+        .map(|(index, position)| {
+            notionals
+                .get(index)
+                .copied()
+                .unwrap_or_else(|| fallback_notional(position))
+        })
         .sum::<f64>();
     let total_bonus_offset = accounts
         .iter()
@@ -187,28 +192,29 @@ pub fn exposure_with_notionals(
 pub fn performance(
     accounts: &[ExchangeAccount],
     positions: &[PortfolioPosition],
+    closed_trades: &[ClosedTradeRecord],
 ) -> PerformanceMetrics {
-    let mut realized = 0.0;
-    let mut unrealized = 0.0;
-    let mut fee_drag = 0.0;
-    let mut closed_positions = 0usize;
-    let mut wins = 0usize;
-    let mut total_hold_hours = 0.0;
-
-    for position in positions {
-        unrealized += position.unrealized_pnl;
-        fee_drag += position.fee_paid + position.funding_paid;
-
-        if position.realized_pnl != 0.0 {
-            closed_positions += 1;
-            realized += position.realized_pnl;
-            if position.realized_pnl > 0.0 {
-                wins += 1;
-            }
-        }
-
-        total_hold_hours += (Utc::now() - position.opened_at).num_minutes() as f64 / 60.0;
-    }
+    let realized = closed_trades
+        .iter()
+        .map(|trade| trade.realized_pnl)
+        .sum::<f64>();
+    let unrealized = positions
+        .iter()
+        .map(|position| position.unrealized_pnl)
+        .sum::<f64>();
+    let fee_drag = positions
+        .iter()
+        .map(|position| position.fee_paid + position.funding_paid)
+        .sum::<f64>();
+    let closed_positions = closed_trades.len();
+    let wins = closed_trades
+        .iter()
+        .filter(|trade| trade.realized_pnl > 0.0)
+        .count();
+    let total_hold_hours = closed_trades
+        .iter()
+        .map(|trade| (trade.closed_at - trade.opened_at).num_minutes().max(0) as f64 / 60.0)
+        .sum::<f64>();
 
     let total_bonus_offset = accounts
         .iter()
@@ -232,10 +238,10 @@ pub fn performance(
         } else {
             0.0
         },
-        average_hold_hours: if positions.is_empty() {
+        average_hold_hours: if closed_positions == 0 {
             0.0
         } else {
-            total_hold_hours / positions.len() as f64
+            total_hold_hours / closed_positions as f64
         },
         fee_drag,
     }
@@ -533,8 +539,9 @@ mod tests {
     use chrono::{Duration, TimeZone, Utc};
 
     use crate::domain::{
-        AccountMode, ExchangeAccount, ExchangeKind, PortfolioPosition, PositionSide,
-        SyncHealthState, SyncHealthTone, SyncJobRecord, SyncJobState, SyncStatus,
+        AccountMode, ClosedTradeRecord, ExchangeAccount, ExchangeKind, FundingMode,
+        PortfolioPosition, PositionSide, SyncHealthState, SyncHealthTone, SyncJobRecord,
+        SyncJobState, SyncStatus,
     };
 
     use super::{
@@ -586,6 +593,7 @@ mod tests {
             realized_pnl: 0.0,
             fee_paid: 0.0,
             funding_paid: 0.0,
+            funding_mode: FundingMode::Manual,
             take_profit: None,
             stop_loss: None,
             opened_at: Utc::now(),
@@ -644,6 +652,7 @@ mod tests {
             realized_pnl: 0.0,
             fee_paid: 2.0,
             funding_paid: 1.0,
+            funding_mode: FundingMode::Manual,
             take_profit: None,
             stop_loss: None,
             opened_at: Utc::now(),
@@ -797,7 +806,13 @@ mod tests {
         assert_eq!(helper.len(), 3);
     }
 
-    fn make_account(id: &str, bonus: f64, fee_rate: f64, loss_rate: f64, funding_rate: f64) -> ExchangeAccount {
+    fn make_account(
+        id: &str,
+        bonus: f64,
+        fee_rate: f64,
+        loss_rate: f64,
+        funding_rate: f64,
+    ) -> ExchangeAccount {
         ExchangeAccount {
             id: id.into(),
             name: format!("Account {}", id),
@@ -843,6 +858,7 @@ mod tests {
             realized_pnl: 0.0,
             fee_paid: fee,
             funding_paid: funding,
+            funding_mode: FundingMode::Manual,
             take_profit: None,
             stop_loss: None,
             opened_at: Utc::now(),
@@ -862,7 +878,11 @@ mod tests {
         // loss_offset = 100 * 0.5 = 50
         // funding_offset = 10 * 0.5 = 5
         // total = 75, capped at 500 → 75
-        assert!((offset - 75.0).abs() < 0.001, "expected 75.0, got {}", offset);
+        assert!(
+            (offset - 75.0).abs() < 0.001,
+            "expected 75.0, got {}",
+            offset
+        );
     }
 
     #[test]
@@ -883,6 +903,72 @@ mod tests {
 
         let offset = super::compute_account_bonus_offset(&account, &positions);
         // desired = 200, but capped at 10
-        assert!((offset - 10.0).abs() < 0.001, "expected 10.0 (capped), got {}", offset);
+        assert!(
+            (offset - 10.0).abs() < 0.001,
+            "expected 10.0 (capped), got {}",
+            offset
+        );
+    }
+
+    #[test]
+    fn performance_uses_closed_trade_history_for_realized_metrics() {
+        let account = make_account("p", 0.0, 0.0, 0.0, 0.0);
+        let positions = vec![make_position("p", 25.0, 2.0, 1.0)];
+        let opened_at = Utc
+            .with_ymd_and_hms(2026, 1, 10, 10, 0, 0)
+            .single()
+            .expect("timestamp should be valid");
+        let closed_trades = vec![
+            ClosedTradeRecord {
+                id: "win".into(),
+                account_id: account.id.clone(),
+                account_name: account.name.clone(),
+                position_id: Some("pos-win".into()),
+                exchange: ExchangeKind::Manual,
+                exchange_symbol: None,
+                margin_mode: None,
+                symbol: "BTCUSDT".into(),
+                side: PositionSide::Long,
+                quantity: 1.0,
+                entry_price: 100.0,
+                exit_price: 120.0,
+                leverage: 5.0,
+                realized_pnl: 18.0,
+                fee_paid: 1.0,
+                funding_paid: 1.0,
+                opened_at,
+                closed_at: opened_at + Duration::hours(2),
+                note: None,
+            },
+            ClosedTradeRecord {
+                id: "loss".into(),
+                account_id: account.id.clone(),
+                account_name: account.name.clone(),
+                position_id: Some("pos-loss".into()),
+                exchange: ExchangeKind::Manual,
+                exchange_symbol: None,
+                margin_mode: None,
+                symbol: "ETHUSDT".into(),
+                side: PositionSide::Short,
+                quantity: 1.0,
+                entry_price: 200.0,
+                exit_price: 210.0,
+                leverage: 4.0,
+                realized_pnl: -12.0,
+                fee_paid: 1.0,
+                funding_paid: 0.0,
+                opened_at,
+                closed_at: opened_at + Duration::hours(4),
+                note: None,
+            },
+        ];
+
+        let metrics = super::performance(&[account], &positions, &closed_trades);
+
+        assert!((metrics.realized_pnl - 6.0).abs() < 1e-9);
+        assert_eq!(metrics.closed_positions, 2);
+        assert!((metrics.win_rate - 50.0).abs() < 1e-9);
+        assert!((metrics.average_hold_hours - 3.0).abs() < 1e-9);
+        assert!((metrics.unrealized_pnl - 25.0).abs() < 1e-9);
     }
 }

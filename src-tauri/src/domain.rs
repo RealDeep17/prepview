@@ -86,6 +86,14 @@ pub enum PositionRiskSource {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+pub enum FundingMode {
+    Manual,
+    Auto,
+    ExchangeSync,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
 pub enum RiskTierBasis {
     ExchangeQuantity,
     NotionalUsd,
@@ -138,6 +146,7 @@ pub struct PortfolioPosition {
     pub realized_pnl: f64,
     pub fee_paid: f64,
     pub funding_paid: f64,
+    pub funding_mode: FundingMode,
     pub take_profit: Option<f64>,
     pub stop_loss: Option<f64>,
     pub opened_at: DateTime<Utc>,
@@ -387,8 +396,10 @@ pub struct ManualPositionInput {
     pub realized_pnl: Option<f64>,
     pub fee_paid: Option<f64>,
     pub funding_paid: Option<f64>,
+    pub funding_mode: Option<FundingMode>,
     pub take_profit: Option<f64>,
     pub stop_loss: Option<f64>,
+    pub opened_at: Option<DateTime<Utc>>,
     pub notes: Option<String>,
 }
 
@@ -411,8 +422,10 @@ pub struct UpdateManualPositionInput {
     pub realized_pnl: Option<f64>,
     pub fee_paid: Option<f64>,
     pub funding_paid: Option<f64>,
+    pub funding_mode: Option<FundingMode>,
     pub take_profit: Option<f64>,
     pub stop_loss: Option<f64>,
+    pub opened_at: Option<DateTime<Utc>>,
     pub notes: Option<String>,
 }
 
@@ -440,7 +453,8 @@ pub struct CsvImportRow {
     pub maintenance_margin: Option<f64>,
     pub realized_pnl: f64,
     pub fee_paid: f64,
-    pub funding_paid: f64,
+    pub funding_paid: Option<f64>,
+    pub opened_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -532,6 +546,26 @@ pub struct FundingEntry {
     pub symbol: String,
     pub rate: f64,
     pub funding_time: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PositionFundingEstimateInput {
+    pub exchange: ExchangeKind,
+    pub exchange_symbol: Option<String>,
+    pub symbol: String,
+    pub side: PositionSide,
+    pub quantity: f64,
+    pub opened_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PositionFundingEstimate {
+    pub funding_paid: f64,
+    pub settlements: usize,
+    pub estimated: bool,
+    pub as_of: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

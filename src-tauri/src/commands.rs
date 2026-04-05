@@ -6,22 +6,23 @@ use tokio::time::{sleep, Duration};
 
 use crate::{
     connectors::{
-        build_external_reference, connector_for, fetch_exchange_risk_tiers, ExchangeConnector,
+        build_external_reference, connector_for, estimate_public_position_funding,
+        fetch_exchange_risk_tiers, ExchangeConnector,
     },
     credentials::build_credentials,
     csv_import::parse_csv,
     domain::{
-        BootstrapState, CloseManualPositionInput, CloseManualPositionResult,
-        ClosedTradeQueryInput, ClosedTradeRecord, CreateAccountInput, CreateLiveAccountInput,
-        CsvImportInput, CsvImportResult, ExchangeAccount, ExchangeKind, ExchangeMarket,
-        LanStatus, LiveAccountValidation, ManualPositionInput, MarginMode, MarketQuote,
-        PortfolioPosition, PositionEventQueryInput, PositionEventRecord, QuoteRefreshResult,
-        SyncAccountResult, SyncAllAccountsResult, SyncFailure, UpdateAccountInput,
-        UpdateManualPositionInput,
+        BootstrapState, CloseManualPositionInput, CloseManualPositionResult, ClosedTradeQueryInput,
+        ClosedTradeRecord, CreateAccountInput, CreateLiveAccountInput, CsvImportInput,
+        CsvImportResult, ExchangeAccount, ExchangeKind, ExchangeMarket, FundingMode, LanStatus,
+        LiveAccountValidation, ManualPositionInput, MarginMode, MarketQuote, PortfolioPosition,
+        PositionEventQueryInput, PositionEventRecord, PositionFundingEstimate,
+        PositionFundingEstimateInput, QuoteRefreshResult, SyncAccountResult, SyncAllAccountsResult,
+        SyncFailure, UpdateAccountInput, UpdateManualPositionInput,
     },
-    error::{command_result, AppError},
+    error::{command_result, invalid_input, AppError},
     secret_store::{
-        delete_live_credentials, load_lan_passphrase, load_live_credentials,
+        clear_runtime_secrets, delete_live_credentials, load_lan_passphrase, load_live_credentials,
         store_lan_passphrase, store_live_credentials,
     },
     store::MarketQuoteRefreshTarget,
@@ -195,6 +196,15 @@ pub async fn add_manual_position(
     state: State<'_, Arc<AppServices>>,
     input: ManualPositionInput,
 ) -> Result<PortfolioPosition, String> {
+    let mut input = input;
+    let funding_mode = resolve_manual_funding_mode(
+        input.exchange,
+        input.funding_mode,
+        None,
+        input.opened_at.is_some(),
+        input.funding_paid.is_some(),
+    );
+    input.funding_mode = Some(funding_mode);
     command_result(
         prime_manual_risk_model(
             state.inner(),
@@ -202,6 +212,20 @@ pub async fn add_manual_position(
             input.exchange_symbol.as_deref(),
             Some(input.symbol.as_str()),
             input.margin_mode,
+        )
+        .await,
+    )?;
+    input.funding_paid = command_result(
+        maybe_fill_manual_position_funding(
+            state.inner(),
+            input.exchange,
+            input.exchange_symbol.as_deref(),
+            input.symbol.as_str(),
+            input.side,
+            input.quantity,
+            input.opened_at,
+            funding_mode,
+            input.funding_paid,
         )
         .await,
     )?;
@@ -222,13 +246,26 @@ pub async fn update_manual_position(
     state: State<'_, Arc<AppServices>>,
     input: UpdateManualPositionInput,
 ) -> Result<PortfolioPosition, String> {
-    let existing_exchange = {
+    let mut input = input;
+    let existing_position = {
         let repository = state
             .repository
             .lock()
             .map_err(|_| AppError::StatePoisoned("repository").to_string())?;
-        command_result(repository.get_position(&input.id))?.exchange
+        command_result(repository.get_position(&input.id))?
     };
+    let existing_exchange = existing_position.exchange;
+    let funding_mode = resolve_manual_funding_mode(
+        existing_exchange,
+        input.funding_mode,
+        Some(existing_position.funding_mode),
+        input.opened_at.is_some(),
+        input.funding_paid.is_some(),
+    );
+    if input.opened_at.is_none() {
+        input.opened_at = Some(existing_position.opened_at);
+    }
+    input.funding_mode = Some(funding_mode);
     command_result(
         prime_manual_risk_model(
             state.inner(),
@@ -236,6 +273,20 @@ pub async fn update_manual_position(
             input.exchange_symbol.as_deref(),
             Some(input.symbol.as_str()),
             input.margin_mode,
+        )
+        .await,
+    )?;
+    input.funding_paid = command_result(
+        maybe_fill_manual_position_funding(
+            state.inner(),
+            existing_exchange,
+            input.exchange_symbol.as_deref(),
+            input.symbol.as_str(),
+            input.side,
+            input.quantity,
+            input.opened_at,
+            funding_mode,
+            input.funding_paid,
         )
         .await,
     )?;
@@ -290,6 +341,12 @@ pub async fn import_csv_positions(
     input: CsvImportInput,
 ) -> Result<CsvImportResult, String> {
     let (rows, _) = command_result(parse_csv(&input.csv))?;
+    let should_refresh_auto_funding = matches!(
+        input.exchange,
+        ExchangeKind::Blofin | ExchangeKind::Hyperliquid
+    ) && rows
+        .iter()
+        .any(|row| row.data.opened_at.is_some() && row.data.funding_paid.is_none());
     for row in &rows {
         command_result(
             prime_manual_risk_model(
@@ -310,6 +367,18 @@ pub async fn import_csv_positions(
         repository.import_csv(input)
     };
     let result = command_result(result)?;
+    if should_refresh_auto_funding {
+        match refresh_local_auto_funding_inner(state.inner()).await {
+            Ok((_, warnings)) => {
+                for warning in warnings {
+                    log::warn!("prepview auto funding refresh warning: {warning}");
+                }
+            }
+            Err(error) => {
+                log::warn!("prepview auto funding refresh failed after csv import: {error}");
+            }
+        }
+    }
     let _ = state.emit_snapshot();
     Ok(result)
 }
@@ -338,6 +407,14 @@ pub async fn get_exchange_market_quote(
         command_result(repository.cache_market_quotes(std::slice::from_ref(&quote)))?;
     }
     Ok(quote)
+}
+
+#[tauri::command]
+pub async fn preview_position_funding(
+    state: State<'_, Arc<AppServices>>,
+    input: PositionFundingEstimateInput,
+) -> Result<PositionFundingEstimate, String> {
+    command_result(estimate_position_funding_inner(state.inner(), &input).await)
 }
 
 #[tauri::command]
@@ -461,6 +538,14 @@ pub fn reset_database(state: State<'_, Arc<AppServices>>) -> Result<(), String> 
         repository.reset_database()
     };
     let _ = command_result(result)?;
+    {
+        let mut manager = state
+            .lan_manager
+            .lock()
+            .map_err(|_| AppError::StatePoisoned("lan manager").to_string())?;
+        let _ = manager.disable();
+    }
+    command_result(clear_runtime_secrets(&state.secrets_dir))?;
     let _ = state.emit_snapshot();
     Ok(())
 }
@@ -616,13 +701,20 @@ pub(crate) async fn refresh_portfolio_quotes_inner(
         }
     }
 
-    let positions_updated = {
+    let mut positions_updated = {
         let repository = services
             .repository
             .lock()
             .map_err(|_| AppError::StatePoisoned("repository"))?;
         repository.apply_market_quotes(&quotes)?
     };
+    match refresh_local_auto_funding_inner(services).await {
+        Ok((funding_updates, auto_warnings)) => {
+            positions_updated += funding_updates;
+            warnings.extend(auto_warnings);
+        }
+        Err(error) => warnings.push(format!("Local auto funding refresh failed: {error}")),
+    }
 
     Ok(QuoteRefreshResult {
         targets_discovered: targets.len(),
@@ -708,6 +800,225 @@ async fn load_exchange_markets_with_cache(
             }
         }
     }
+}
+
+async fn estimate_position_funding_inner(
+    services: &Arc<AppServices>,
+    input: &PositionFundingEstimateInput,
+) -> Result<PositionFundingEstimate, AppError> {
+    if !matches!(
+        input.exchange,
+        ExchangeKind::Blofin | ExchangeKind::Hyperliquid
+    ) {
+        return Err(invalid_input(
+            "automatic funding is only available for BloFin and Hyperliquid positions",
+        ));
+    }
+    if input.quantity <= 0.0 {
+        return Err(invalid_input("quantity must be positive"));
+    }
+
+    let as_of = Utc::now();
+    if input.opened_at > as_of {
+        return Err(invalid_input("trade placed at cannot be in the future"));
+    }
+
+    load_exchange_markets_with_cache(services, input.exchange).await?;
+    let market = {
+        let repository = services
+            .repository
+            .lock()
+            .map_err(|_| AppError::StatePoisoned("repository"))?;
+        repository.resolve_cached_exchange_market(
+            input.exchange,
+            input.exchange_symbol.as_deref(),
+            Some(input.symbol.as_str()),
+        )?
+    }
+    .ok_or_else(|| AppError::message("exchange-backed market metadata was not found"))?;
+
+    estimate_public_position_funding(
+        services.http_client.clone(),
+        input.exchange,
+        &market.exchange_symbol,
+        input.side,
+        input.quantity,
+        market.contract_value,
+        input.opened_at,
+        as_of,
+    )
+    .await
+}
+
+fn resolve_manual_funding_mode(
+    exchange: ExchangeKind,
+    requested_mode: Option<FundingMode>,
+    existing_mode: Option<FundingMode>,
+    has_opened_at: bool,
+    has_funding_paid: bool,
+) -> FundingMode {
+    match requested_mode {
+        Some(FundingMode::Auto) => FundingMode::Auto,
+        Some(FundingMode::Manual) => FundingMode::Manual,
+        Some(FundingMode::ExchangeSync) => FundingMode::Manual,
+        None => match existing_mode {
+            Some(FundingMode::Auto) => FundingMode::Auto,
+            Some(FundingMode::Manual) | Some(FundingMode::ExchangeSync) => FundingMode::Manual,
+            None if matches!(exchange, ExchangeKind::Blofin | ExchangeKind::Hyperliquid)
+                && has_opened_at
+                && !has_funding_paid =>
+            {
+                FundingMode::Auto
+            }
+            None => FundingMode::Manual,
+        },
+    }
+}
+
+async fn maybe_fill_manual_position_funding(
+    services: &Arc<AppServices>,
+    exchange: ExchangeKind,
+    exchange_symbol: Option<&str>,
+    symbol: &str,
+    side: crate::domain::PositionSide,
+    quantity: f64,
+    opened_at: Option<chrono::DateTime<Utc>>,
+    funding_mode: FundingMode,
+    funding_paid: Option<f64>,
+) -> Result<Option<f64>, AppError> {
+    if funding_mode != FundingMode::Auto || funding_paid.is_some() {
+        return Ok(funding_paid);
+    }
+
+    let opened_at = opened_at.ok_or_else(|| {
+        invalid_input("trade placed at is required when automatic funding is enabled")
+    })?;
+    let estimate = estimate_position_funding_inner(
+        services,
+        &PositionFundingEstimateInput {
+            exchange,
+            exchange_symbol: exchange_symbol.map(|value| value.to_string()),
+            symbol: symbol.to_string(),
+            side,
+            quantity,
+            opened_at,
+        },
+    )
+    .await?;
+    Ok(Some(estimate.funding_paid))
+}
+
+async fn refresh_local_auto_funding_inner(
+    services: &Arc<AppServices>,
+) -> Result<(usize, Vec<String>), AppError> {
+    let targets = {
+        let repository = services
+            .repository
+            .lock()
+            .map_err(|_| AppError::StatePoisoned("repository"))?;
+        repository.list_auto_funding_refresh_targets()?
+    };
+    if targets.is_empty() {
+        return Ok((0, Vec::new()));
+    }
+
+    let as_of = Utc::now();
+    let mut warnings = Vec::new();
+    let mut updates = Vec::new();
+    let mut blofin_markets = None::<Vec<ExchangeMarket>>;
+    let mut hyperliquid_markets = None::<Vec<ExchangeMarket>>;
+
+    for target in targets {
+        let markets = match target.exchange {
+            ExchangeKind::Blofin => {
+                if blofin_markets.is_none() {
+                    match load_exchange_markets_with_cache(services, ExchangeKind::Blofin).await {
+                        Ok(markets) => blofin_markets = Some(markets),
+                        Err(error) => {
+                            warnings.push(format!(
+                                "BloFin auto funding refresh skipped {}: {}",
+                                target.exchange_symbol, error
+                            ));
+                            continue;
+                        }
+                    }
+                }
+                blofin_markets.as_ref().expect("blofin markets should load")
+            }
+            ExchangeKind::Hyperliquid => {
+                if hyperliquid_markets.is_none() {
+                    match load_exchange_markets_with_cache(services, ExchangeKind::Hyperliquid)
+                        .await
+                    {
+                        Ok(markets) => hyperliquid_markets = Some(markets),
+                        Err(error) => {
+                            warnings.push(format!(
+                                "Hyperliquid auto funding refresh skipped {}: {}",
+                                target.exchange_symbol, error
+                            ));
+                            continue;
+                        }
+                    }
+                }
+                hyperliquid_markets
+                    .as_ref()
+                    .expect("hyperliquid markets should load")
+            }
+            _ => continue,
+        };
+
+        let market = markets
+            .iter()
+            .find(|market| {
+                market
+                    .exchange_symbol
+                    .eq_ignore_ascii_case(&target.exchange_symbol)
+                    || market.symbol.eq_ignore_ascii_case(&target.symbol)
+            })
+            .cloned();
+        let Some(market) = market else {
+            warnings.push(format!(
+                "{} auto funding refresh skipped {}: market metadata was not found",
+                exchange_label(target.exchange),
+                target.exchange_symbol,
+            ));
+            continue;
+        };
+
+        match estimate_public_position_funding(
+            services.http_client.clone(),
+            target.exchange,
+            &market.exchange_symbol,
+            target.side,
+            target.quantity,
+            market.contract_value,
+            target.opened_at,
+            as_of,
+        )
+        .await
+        {
+            Ok(estimate) => updates.push(crate::store::AutoFundingUpdate {
+                position_id: target.position_id,
+                funding_paid: estimate.funding_paid,
+            }),
+            Err(error) => warnings.push(format!(
+                "{} auto funding refresh skipped {}: {}",
+                exchange_label(target.exchange),
+                target.exchange_symbol,
+                error
+            )),
+        }
+    }
+
+    let updated = {
+        let repository = services
+            .repository
+            .lock()
+            .map_err(|_| AppError::StatePoisoned("repository"))?;
+        repository.apply_auto_funding_updates(&updates)?
+    };
+
+    Ok((updated, warnings))
 }
 
 fn quotes_from_markets(markets: &[ExchangeMarket]) -> Vec<MarketQuote> {
@@ -1229,6 +1540,7 @@ mod tests {
                 .expect("client should build"),
             secrets_dir: root.join("secrets"),
             sync_gate: tokio::sync::Mutex::new(()),
+            app_handle: None,
         });
         (services, root)
     }

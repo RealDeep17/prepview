@@ -1,3 +1,5 @@
+use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
+
 use crate::{
     domain::{CsvImportRow, MarginMode, PositionSide},
     error::{invalid_input, AppResult},
@@ -61,6 +63,16 @@ fn parse_number(raw: Option<&&String>) -> f64 {
         .unwrap_or(0.0)
 }
 
+fn parse_optional_number(raw: Option<&&String>) -> AppResult<Option<f64>> {
+    let Some(value) = raw.map(|item| item.trim()).filter(|item| !item.is_empty()) else {
+        return Ok(None);
+    };
+    value
+        .parse::<f64>()
+        .map(Some)
+        .map_err(|_| invalid_input(format!("invalid numeric value `{value}`")))
+}
+
 fn parse_optional_positive_number(raw: Option<&&String>) -> AppResult<Option<f64>> {
     let Some(value) = raw.map(|item| item.trim()).filter(|item| !item.is_empty()) else {
         return Ok(None);
@@ -89,6 +101,34 @@ fn parse_optional_non_negative_number(raw: Option<&&String>) -> AppResult<Option
         )));
     }
     Ok(Some(parsed))
+}
+
+fn parse_optional_datetime(raw: Option<&&String>) -> AppResult<Option<DateTime<Utc>>> {
+    let Some(value) = raw.map(|item| item.trim()).filter(|item| !item.is_empty()) else {
+        return Ok(None);
+    };
+
+    if let Ok(parsed) = DateTime::parse_from_rfc3339(value) {
+        return Ok(Some(parsed.with_timezone(&Utc)));
+    }
+
+    if let Ok(parsed) = NaiveDateTime::parse_from_str(value, "%Y-%m-%d %H:%M:%S") {
+        return Ok(Some(parsed.and_utc()));
+    }
+
+    if let Ok(parsed) = NaiveDateTime::parse_from_str(value, "%Y-%m-%dT%H:%M:%S") {
+        return Ok(Some(parsed.and_utc()));
+    }
+
+    if let Ok(parsed) = value.parse::<i64>() {
+        let datetime = Utc
+            .timestamp_millis_opt(parsed)
+            .single()
+            .ok_or_else(|| invalid_input(format!("invalid datetime value `{value}`")))?;
+        return Ok(Some(datetime));
+    }
+
+    Err(invalid_input(format!("invalid datetime value `{value}`")))
 }
 
 pub fn parse_csv(payload: &str) -> AppResult<(Vec<ParsedCsvRow>, Vec<String>)> {
@@ -155,7 +195,8 @@ pub fn parse_csv(payload: &str) -> AppResult<(Vec<ParsedCsvRow>, Vec<String>)> {
                 )?,
                 realized_pnl: parse_number(lookup.get("realized_pnl")),
                 fee_paid: parse_number(lookup.get("fee_paid")),
-                funding_paid: parse_number(lookup.get("funding_paid")),
+                funding_paid: parse_optional_number(lookup.get("funding_paid"))?,
+                opened_at: parse_optional_datetime(lookup.get("opened_at"))?,
             })
         })();
 
@@ -173,6 +214,8 @@ pub fn parse_csv(payload: &str) -> AppResult<(Vec<ParsedCsvRow>, Vec<String>)> {
 
 #[cfg(test)]
 mod tests {
+    use chrono::{DateTime, Utc};
+
     use super::parse_csv;
     use crate::domain::MarginMode;
 
@@ -195,8 +238,8 @@ mod tests {
     #[test]
     fn parses_optional_live_parity_columns() {
         let payload = [
-            "symbol,exchange_symbol,margin_mode,side,entry_price,quantity,leverage,mark_price,margin_used,liquidation_price,maintenance_margin,realized_pnl,fee_paid,funding_paid",
-            "BTC-PERP,BTC-USDT,cross,long,100,1,5,101,20,80,1.5,4.2,0.5,0.2",
+            "symbol,exchange_symbol,margin_mode,side,entry_price,quantity,leverage,mark_price,margin_used,liquidation_price,maintenance_margin,realized_pnl,fee_paid,funding_paid,opened_at",
+            "BTC-PERP,BTC-USDT,cross,long,100,1,5,101,20,80,1.5,4.2,0.5,0.2,2026-01-12T10:30:00Z",
         ]
         .join("\n");
 
@@ -209,5 +252,12 @@ mod tests {
         assert_eq!(rows[0].data.liquidation_price, Some(80.0));
         assert_eq!(rows[0].data.maintenance_margin, Some(1.5));
         assert_eq!(rows[0].data.realized_pnl, 4.2);
+        assert_eq!(rows[0].data.funding_paid, Some(0.2));
+        assert_eq!(
+            rows[0].data.opened_at.expect("opened_at should parse"),
+            DateTime::parse_from_rfc3339("2026-01-12T10:30:00Z")
+                .expect("timestamp should parse")
+                .with_timezone(&Utc)
+        );
     }
 }

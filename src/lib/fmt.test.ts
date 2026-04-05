@@ -25,6 +25,8 @@ describe('fmt helpers', () => {
     expect(fmtCompactCurrency(28438.118399)).toBe('$28,438');
     expect(fmtCompactCurrency(3060.45269)).toBe('$3,060.5');
     expect(fmtCompactCurrency(9.612039)).toBe('$9.61');
+    expect(fmtCompactCurrency(0.12568)).toBe('$0.1257');
+    expect(fmtCompactCurrency(0.004321)).toBe('$0.004321');
     expect(fmtCurrency(null)).toBe('—');
     expect(fmtPnl(12.3)).toBe('+$12.30');
     expect(fmtPnl(-12.3)).toBe('−$12.30');
@@ -35,6 +37,8 @@ describe('fmt helpers', () => {
     vi.setSystemTime(new Date('2026-04-04T00:00:00Z'));
 
     expect(fmtPercent(12.3456)).toBe('12.35%');
+    expect(fmtPercent(0.0456)).toBe('0.046%');
+    expect(fmtPercent(0.5)).toBe('0.5%');
     expect(fmtCompactNumber(3)).toBe('3');
     expect(fmtCompactNumber(3.125, 4)).toBe('3.125');
     expect(fmtCostClass(-1)).toBe('pnl-positive');

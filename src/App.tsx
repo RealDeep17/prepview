@@ -1,25 +1,27 @@
 import { useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { useAppStore } from './store/appStore';
+import type { BootstrapState } from './lib/types';
 import { WorkstationShell } from './shell/WorkstationShell';
 import { ContextMenuProvider } from './shell/ContextMenu';
 import { ToastProvider } from './shell/Toast';
 
 export default function App() {
   const fetchBootstrap = useAppStore((s) => s.fetchBootstrap);
+  const applyBootstrap = useAppStore((s) => s.applyBootstrap);
   const loading = useAppStore((s) => s.loading);
   const error = useAppStore((s) => s.error);
   const closeOverlay = useAppStore((s) => s.closeOverlay);
 
   useEffect(() => {
     fetchBootstrap();
-    const unlisten = listen('prepview://state-changed', () => {
-      fetchBootstrap();
+    const unlisten = listen<BootstrapState>('prepview://state-changed', (event) => {
+      applyBootstrap(event.payload);
     });
     return () => {
       unlisten.then((fn) => fn());
     };
-  }, [fetchBootstrap]);
+  }, [applyBootstrap, fetchBootstrap]);
 
   // Global Escape key to close overlays
   useEffect(() => {

@@ -9,12 +9,12 @@ use crate::{
     domain::{
         AccountHistorySeries, AccountMode, AccountSnapshot, AutoSyncStatus, BalanceHistoryPoint,
         BootstrapState, CloseManualPositionInput, CloseManualPositionResult, ClosedTradeQueryInput,
-        ClosedTradeRecord, CreateAccountInput, CsvImportInput, CsvImportResult,
-        ExchangeAccount, ExchangeKind, ExchangeMarket, ExchangeRiskTier, FundingEntry,
-        FundingHistoryEntry, LanStatus, ManualPositionInput, MarginMode, MarketQuote,
-        PortfolioPosition, PositionEventKind, PositionEventQueryInput, PositionEventRecord,
-        PositionRiskSource, PositionSide, SyncJobRecord, SyncJobState, SyncStatus,
-        SyncedPosition, UpdateAccountInput, UpdateManualPositionInput,
+        ClosedTradeRecord, CreateAccountInput, CsvImportInput, CsvImportResult, ExchangeAccount,
+        ExchangeKind, ExchangeMarket, ExchangeRiskTier, FundingEntry, FundingHistoryEntry,
+        FundingMode, LanStatus, ManualPositionInput, MarginMode, MarketQuote, PortfolioPosition,
+        PositionEventKind, PositionEventQueryInput, PositionEventRecord, PositionRiskSource,
+        PositionSide, SyncJobRecord, SyncJobState, SyncStatus, SyncedPosition, UpdateAccountInput,
+        UpdateManualPositionInput,
     },
     error::{invalid_input, AppResult},
     metrics,
@@ -39,6 +39,23 @@ pub(crate) struct MarketQuoteRefreshTarget {
     pub exchange: ExchangeKind,
     pub exchange_symbol: Option<String>,
     pub symbol: String,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct AutoFundingRefreshTarget {
+    pub position_id: String,
+    pub exchange: ExchangeKind,
+    pub exchange_symbol: String,
+    pub symbol: String,
+    pub side: PositionSide,
+    pub quantity: f64,
+    pub opened_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct AutoFundingUpdate {
+    pub position_id: String,
+    pub funding_paid: f64,
 }
 
 #[derive(Debug)]
@@ -182,6 +199,7 @@ impl PortfolioRepository {
                 realized_pnl REAL NOT NULL DEFAULT 0,
                 fee_paid REAL NOT NULL DEFAULT 0,
                 funding_paid REAL NOT NULL DEFAULT 0,
+                funding_mode TEXT NOT NULL DEFAULT 'manual',
                 opened_at TEXT NOT NULL,
                 notes TEXT,
                 FOREIGN KEY(account_id) REFERENCES accounts(id) ON DELETE CASCADE
@@ -375,6 +393,7 @@ impl PortfolioRepository {
         self.ensure_position_column("maintenance_margin", "REAL")?;
         self.ensure_position_column("maintenance_margin_rate", "REAL")?;
         self.ensure_position_column("risk_source", "TEXT")?;
+        self.ensure_position_column("funding_mode", "TEXT NOT NULL DEFAULT 'manual'")?;
         self.ensure_exchange_market_column("contract_value", "REAL")?;
         self.ensure_account_column("bonus_balance", "REAL NOT NULL DEFAULT 0")?;
         self.ensure_account_column("bonus_fee_deduction_rate", "REAL NOT NULL DEFAULT 0")?;
@@ -657,13 +676,41 @@ impl PortfolioRepository {
         }
 
         for stale_position in existing_by_key.into_values() {
+            let inferred_exit_price = stale_position
+                .mark_price
+                .unwrap_or(stale_position.entry_price);
+            let inferred_note = if stale_position.mark_price.is_some() {
+                Some("Live sync inferred close from last observed mark".into())
+            } else {
+                Some("Live sync inferred close without a final mark quote".into())
+            };
+            self.record_closed_trade(ClosedTradeInsert {
+                account_id: account.id.clone(),
+                account_name: account.name.clone(),
+                position_id: Some(stale_position.id.clone()),
+                exchange: stale_position.exchange,
+                exchange_symbol: stale_position.exchange_symbol.clone(),
+                margin_mode: stale_position.margin_mode,
+                symbol: stale_position.symbol.clone(),
+                side: stale_position.side,
+                quantity: stale_position.quantity,
+                entry_price: stale_position.entry_price,
+                exit_price: inferred_exit_price,
+                leverage: stale_position.leverage,
+                realized_pnl: stale_position.realized_pnl + stale_position.unrealized_pnl,
+                fee_paid: stale_position.fee_paid,
+                funding_paid: stale_position.funding_paid,
+                opened_at: stale_position.opened_at,
+                closed_at: now,
+                note: inferred_note.clone(),
+            })?;
             self.record_position_event(build_position_event_from_position(
                 &account,
                 &stale_position,
                 PositionEventKind::Closed,
                 now,
                 job_id,
-                Some("No longer returned by live sync".into()),
+                inferred_note,
             ))?;
             self.connection.execute(
                 "DELETE FROM positions WHERE id = ?1",
@@ -759,6 +806,8 @@ impl PortfolioRepository {
         });
         let risk_source =
             manual_position_risk_source(input.liquidation_price, input.maintenance_margin);
+        let funding_mode = input.funding_mode.unwrap_or(existing.funding_mode);
+        let opened_at = input.opened_at.unwrap_or(existing.opened_at);
 
         self.connection.execute(
             "UPDATE positions
@@ -781,9 +830,11 @@ impl PortfolioRepository {
                  realized_pnl = ?18,
                  fee_paid = ?19,
                  funding_paid = ?20,
-                 take_profit = ?21,
-                 stop_loss = ?22,
-                 notes = ?23
+                 funding_mode = ?21,
+                 take_profit = ?22,
+                 stop_loss = ?23,
+                 opened_at = ?24,
+                 notes = ?25
              WHERE id = ?1",
             params![
                 input.id,
@@ -806,8 +857,10 @@ impl PortfolioRepository {
                 input.realized_pnl.unwrap_or(existing.realized_pnl),
                 input.fee_paid.unwrap_or(0.0),
                 input.funding_paid.unwrap_or(0.0),
+                encode_funding_mode(funding_mode),
                 input.take_profit,
                 input.stop_loss,
+                opened_at.to_rfc3339(),
                 normalize_optional_text(input.notes),
             ],
         )?;
@@ -885,16 +938,20 @@ impl PortfolioRepository {
         )?;
         let close_fee = input.fee_paid.unwrap_or(0.0);
         let close_funding = input.funding_paid.unwrap_or(0.0);
+        let close_ratio = (quantity_to_close / position.quantity).clamp(0.0, 1.0);
+        let carried_fee = position.fee_paid * close_ratio;
+        let carried_funding = position.funding_paid * close_ratio;
+        let closed_fee_paid = carried_fee + close_fee;
+        let closed_funding_paid = carried_funding + close_funding;
         let closed_at = input.closed_at.unwrap_or_else(Utc::now);
-        let realized_pnl =
-            pnl_amount(
-                position.side,
-                position.entry_price,
-                input.exit_price,
-                quantity_to_close,
-                market.as_ref(),
-            ) - close_fee
-                - close_funding;
+        let realized_pnl = pnl_amount(
+            position.side,
+            position.entry_price,
+            input.exit_price,
+            quantity_to_close,
+            market.as_ref(),
+        ) - closed_fee_paid
+            - closed_funding_paid;
 
         let closed_trade = ClosedTradeInsert {
             account_id: account.id.clone(),
@@ -910,8 +967,8 @@ impl PortfolioRepository {
             exit_price: input.exit_price,
             leverage: position.leverage,
             realized_pnl,
-            fee_paid: close_fee,
-            funding_paid: close_funding,
+            fee_paid: closed_fee_paid,
+            funding_paid: closed_funding_paid,
             opened_at: position.opened_at,
             closed_at,
             note: normalize_optional_text(input.note),
@@ -955,17 +1012,16 @@ impl PortfolioRepository {
         let remaining_quantity = position.quantity - quantity_to_close;
         let next_mark_price = Some(input.exit_price);
         let next_realized_pnl = position.realized_pnl + realized_pnl;
-        let next_fee_paid = position.fee_paid + close_fee;
-        let next_funding_paid = position.funding_paid + close_funding;
-        let next_unrealized_pnl =
-            pnl_amount(
-                position.side,
-                position.entry_price,
-                input.exit_price,
-                remaining_quantity,
-                market.as_ref(),
-            ) - next_fee_paid
-                - next_funding_paid;
+        let next_fee_paid = (position.fee_paid - carried_fee).max(0.0);
+        let next_funding_paid = position.funding_paid - carried_funding;
+        let next_unrealized_pnl = pnl_amount(
+            position.side,
+            position.entry_price,
+            input.exit_price,
+            remaining_quantity,
+            market.as_ref(),
+        ) - next_fee_paid
+            - next_funding_paid;
 
         self.connection.execute(
             "UPDATE positions
@@ -992,8 +1048,8 @@ impl PortfolioRepository {
             quantity: quantity_to_close,
             mark_price: Some(input.exit_price),
             realized_pnl: realized_pnl,
-            fee_paid: close_fee,
-            funding_paid: close_funding,
+            fee_paid: closed_fee_paid,
+            funding_paid: closed_funding_paid,
             ..position.clone()
         };
         self.record_position_event(build_position_event_from_position(
@@ -1089,9 +1145,14 @@ impl PortfolioRepository {
                     leverage: row.data.leverage,
                     realized_pnl: Some(row.data.realized_pnl),
                     fee_paid: Some(row.data.fee_paid),
-                    funding_paid: Some(row.data.funding_paid),
+                    funding_paid: row.data.funding_paid,
+                    funding_mode: match (row.data.opened_at, row.data.funding_paid) {
+                        (Some(_), None) => Some(FundingMode::Auto),
+                        _ => Some(FundingMode::Manual),
+                    },
                     take_profit: None,
                     stop_loss: None,
+                    opened_at: row.data.opened_at,
                     notes: Some("Imported from CSV".into()),
                 },
                 PositionEventKind::Imported,
@@ -1142,6 +1203,7 @@ impl PortfolioRepository {
         let sync_health_summary = metrics::summarize_sync_health(&accounts, &latest_sync_jobs);
         let latest_snapshot = self.latest_snapshot_meta()?;
         let notionals = self.position_notionals(&positions)?;
+        let closed_trades = self.fetch_closed_trades(None)?;
         let summary = metrics::summarize_with_notionals(
             &accounts,
             &positions,
@@ -1151,7 +1213,7 @@ impl PortfolioRepository {
                 .unwrap_or_else(|| "Local state only".into()),
         );
         let exposure = metrics::exposure_with_notionals(&positions, &notionals);
-        let performance = metrics::performance(&accounts, &positions);
+        let performance = metrics::performance(&accounts, &positions, &closed_trades);
 
         let mut markets = Vec::new();
         if let Ok(blofin_markets) = self.list_exchange_markets(ExchangeKind::Blofin) {
@@ -1173,7 +1235,11 @@ impl PortfolioRepository {
             account_history: self.fetch_account_history_series(ACCOUNT_HISTORY_LIMIT)?,
             recent_funding_entries: self.fetch_recent_funding_entries(12)?,
             recent_position_events: self.fetch_recent_position_events(POSITION_EVENT_LIMIT)?,
-            recent_closed_trades: self.fetch_recent_closed_trades(CLOSED_TRADE_LIMIT)?,
+            recent_closed_trades: closed_trades
+                .iter()
+                .take(CLOSED_TRADE_LIMIT)
+                .cloned()
+                .collect(),
             recent_sync_jobs: self.fetch_recent_sync_jobs(12)?,
             lan_status,
             auto_sync_status,
@@ -1367,6 +1433,96 @@ impl PortfolioRepository {
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
     }
 
+    pub fn list_auto_funding_refresh_targets(&self) -> AppResult<Vec<AutoFundingRefreshTarget>> {
+        let mut statement = self.connection.prepare(
+            "SELECT positions.id, positions.exchange, positions.exchange_symbol, positions.symbol,
+                    positions.side, positions.quantity, positions.opened_at
+             FROM positions
+             JOIN accounts ON accounts.id = positions.account_id
+             WHERE accounts.account_mode != 'live'
+               AND positions.funding_mode = 'auto'
+               AND positions.exchange IN ('blofin', 'hyperliquid')
+               AND TRIM(COALESCE(positions.exchange_symbol, '')) != ''
+             ORDER BY positions.opened_at DESC",
+        )?;
+
+        let rows = statement.query_map([], |row| {
+            Ok(AutoFundingRefreshTarget {
+                position_id: row.get(0)?,
+                exchange: decode_exchange(row.get::<_, String>(1)?.as_str()),
+                exchange_symbol: row.get::<_, String>(2)?.trim().to_uppercase(),
+                symbol: row.get::<_, String>(3)?.trim().to_uppercase(),
+                side: decode_side(row.get::<_, String>(4)?.as_str()),
+                quantity: row.get(5)?,
+                opened_at: parse_datetime(row.get::<_, String>(6)?),
+            })
+        })?;
+
+        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    }
+
+    pub fn apply_auto_funding_updates(&self, updates: &[AutoFundingUpdate]) -> AppResult<usize> {
+        if updates.is_empty() {
+            return Ok(0);
+        }
+
+        let mut updated = 0usize;
+        let mut affected_accounts = Vec::<String>::new();
+
+        for update in updates {
+            let position = self.get_position(&update.position_id)?;
+            if position.funding_mode != FundingMode::Auto {
+                continue;
+            }
+
+            let market = self.resolve_exchange_market(
+                position.exchange,
+                position.exchange_symbol.as_deref(),
+                Some(&position.symbol),
+            )?;
+            let next_mark_price = position.mark_price.unwrap_or(position.entry_price);
+            let next_unrealized = pnl_amount(
+                position.side,
+                position.entry_price,
+                next_mark_price,
+                position.quantity,
+                market.as_ref(),
+            ) - position.fee_paid
+                - update.funding_paid;
+
+            if approx_equal(position.funding_paid, update.funding_paid)
+                && approx_equal(position.unrealized_pnl, next_unrealized)
+            {
+                continue;
+            }
+
+            updated += self.connection.execute(
+                "UPDATE positions
+                 SET funding_paid = ?2,
+                     unrealized_pnl = ?3
+                 WHERE id = ?1",
+                params![update.position_id, update.funding_paid, next_unrealized],
+            )?;
+
+            if !affected_accounts
+                .iter()
+                .any(|account_id| account_id == &position.account_id)
+            {
+                affected_accounts.push(position.account_id.clone());
+            }
+        }
+
+        for account_id in affected_accounts {
+            self.snapshot_manual_account_equity(&account_id)?;
+        }
+
+        if updated > 0 {
+            self.record_snapshot("auto_funding_refresh".into())?;
+        }
+
+        Ok(updated)
+    }
+
     pub fn apply_market_quotes(&self, quotes: &[MarketQuote]) -> AppResult<usize> {
         if quotes.is_empty() {
             return Ok(0);
@@ -1516,7 +1672,11 @@ impl PortfolioRepository {
              ORDER BY lower_bound ASC",
         )?;
         let rows = statement.query_map(
-            params![encode_exchange(exchange), normalized_symbol, requested_margin_mode],
+            params![
+                encode_exchange(exchange),
+                normalized_symbol,
+                requested_margin_mode
+            ],
             read_exchange_risk_tier_row,
         )?;
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
@@ -1524,13 +1684,29 @@ impl PortfolioRepository {
 
     pub fn list_exchange_markets(&self, exchange: ExchangeKind) -> AppResult<Vec<ExchangeMarket>> {
         let mut statement = self.connection.prepare(
-            "SELECT exchange, exchange_symbol, symbol, base_asset, quote_asset, settle_asset,
-                    contract_type, contract_value, price_tick_size, quantity_step, min_quantity,
-                    max_leverage, mark_price, oracle_price, funding_rate, next_funding_time,
-                    is_active
+            "SELECT exchange_markets.exchange,
+                    exchange_markets.exchange_symbol,
+                    exchange_markets.symbol,
+                    exchange_markets.base_asset,
+                    exchange_markets.quote_asset,
+                    exchange_markets.settle_asset,
+                    exchange_markets.contract_type,
+                    exchange_markets.contract_value,
+                    exchange_markets.price_tick_size,
+                    exchange_markets.quantity_step,
+                    exchange_markets.min_quantity,
+                    exchange_markets.max_leverage,
+                    COALESCE(market_quotes.mark_price, exchange_markets.mark_price) AS mark_price,
+                    COALESCE(market_quotes.oracle_price, exchange_markets.oracle_price) AS oracle_price,
+                    COALESCE(market_quotes.funding_rate, exchange_markets.funding_rate) AS funding_rate,
+                    COALESCE(market_quotes.next_funding_time, exchange_markets.next_funding_time) AS next_funding_time,
+                    exchange_markets.is_active
              FROM exchange_markets
-             WHERE exchange = ?1
-             ORDER BY is_active DESC, symbol ASC, exchange_symbol ASC",
+             LEFT JOIN market_quotes
+               ON market_quotes.exchange = exchange_markets.exchange
+              AND UPPER(market_quotes.exchange_symbol) = UPPER(exchange_markets.exchange_symbol)
+             WHERE exchange_markets.exchange = ?1
+             ORDER BY exchange_markets.is_active DESC, exchange_markets.symbol ASC, exchange_markets.exchange_symbol ASC",
         )?;
         let rows =
             statement.query_map(params![encode_exchange(exchange)], read_exchange_market_row)?;
@@ -1714,7 +1890,10 @@ impl PortfolioRepository {
                         next_unrealized,
                     ],
                 )?;
-                if !affected_accounts.iter().any(|account_id| account_id == &row.account_id) {
+                if !affected_accounts
+                    .iter()
+                    .any(|account_id| account_id == &row.account_id)
+                {
                     affected_accounts.push(row.account_id.clone());
                 }
             }
@@ -1743,7 +1922,6 @@ impl PortfolioRepository {
     }
 
     fn recalculate_non_live_account_risk(&self, account_id: &str) -> AppResult<()> {
-
         let account = self.get_account(account_id)?;
         if account.account_mode == AccountMode::Live {
             return Ok(());
@@ -1809,22 +1987,18 @@ impl PortfolioRepository {
                 None
             };
             let current_required = match (position.exchange, current_selection) {
-                (ExchangeKind::Blofin, Some(selection)) => {
-                    blofin_required_amount(
-                        position.quantity,
-                        market.as_ref(),
-                        mark_price,
-                        selection.maintenance_margin_rate,
-                    )
-                }
-                (ExchangeKind::Hyperliquid, Some(selection)) => {
-                    hyperliquid_required_amount(
-                        position.quantity,
-                        market.as_ref(),
-                        mark_price,
-                        selection,
-                    )
-                }
+                (ExchangeKind::Blofin, Some(selection)) => blofin_required_amount(
+                    position.quantity,
+                    market.as_ref(),
+                    mark_price,
+                    selection.maintenance_margin_rate,
+                ),
+                (ExchangeKind::Hyperliquid, Some(selection)) => hyperliquid_required_amount(
+                    position.quantity,
+                    market.as_ref(),
+                    mark_price,
+                    selection,
+                ),
                 _ => 0.0,
             };
             prepared.push(PreparedPosition {
@@ -1856,13 +2030,12 @@ impl PortfolioRepository {
                     position.mark_price.unwrap_or(position.entry_price),
                     &item.tiers,
                 ) {
-                    next_maintenance_margin =
-                        Some(maintenance_margin_amount(
-                            position.quantity,
-                            item.market.as_ref(),
-                            position.mark_price.unwrap_or(position.entry_price),
-                            selection,
-                        ));
+                    next_maintenance_margin = Some(maintenance_margin_amount(
+                        position.quantity,
+                        item.market.as_ref(),
+                        position.mark_price.unwrap_or(position.entry_price),
+                        selection,
+                    ));
                     next_maintenance_margin_rate = Some(selection.maintenance_margin_rate);
 
                     match (position.exchange, margin_mode) {
@@ -1899,8 +2072,7 @@ impl PortfolioRepository {
                                 })
                                 .map(|other| other.margin_used)
                                 .sum();
-                            let collateral_pool = account.wallet_balance
-                                + account.bonus_balance
+                            let collateral_pool = account.wallet_balance + account.bonus_balance
                                 - isolated_margins
                                 + cross_pnl_all;
                             let other_required = prepared
@@ -1955,8 +2127,7 @@ impl PortfolioRepository {
                                 })
                                 .map(|other| other.margin_used)
                                 .sum();
-                            let collateral_pool = account.wallet_balance
-                                + account.bonus_balance
+                            let collateral_pool = account.wallet_balance + account.bonus_balance
                                 - isolated_margins
                                 + cross_pnl_all;
                             let other_required = prepared
@@ -1986,7 +2157,9 @@ impl PortfolioRepository {
                 }
             }
 
-            if position.exchange == ExchangeKind::Blofin || position.exchange == ExchangeKind::Hyperliquid {
+            if position.exchange == ExchangeKind::Blofin
+                || position.exchange == ExchangeKind::Hyperliquid
+            {
                 next_margin_used = derive_margin_used(
                     position.entry_price,
                     position.quantity,
@@ -2049,7 +2222,8 @@ impl PortfolioRepository {
             input.leverage.max(1.0),
         )?;
         let leverage = input.leverage.max(1.0);
-        let opened_at = Utc::now();
+        let funding_mode = input.funding_mode.unwrap_or(FundingMode::Manual);
+        let opened_at = input.opened_at.unwrap_or_else(Utc::now);
         let unrealized_pnl = pnl_amount(
             input.side,
             input.entry_price,
@@ -2074,9 +2248,9 @@ impl PortfolioRepository {
             "INSERT INTO positions (
                 id, account_id, exchange, exchange_symbol, margin_mode, symbol, side, quantity, entry_price, mark_price,
                 margin_used, liquidation_price, maintenance_margin, maintenance_margin_rate,
-                risk_source, leverage, unrealized_pnl, realized_pnl, fee_paid, funding_paid,
+                risk_source, leverage, unrealized_pnl, realized_pnl, fee_paid, funding_paid, funding_mode,
                 take_profit, stop_loss, opened_at, notes
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24)",
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25)",
             params![
                 identifier,
                 input.account_id,
@@ -2098,6 +2272,7 @@ impl PortfolioRepository {
                 input.realized_pnl.unwrap_or(0.0),
                 input.fee_paid.unwrap_or(0.0),
                 input.funding_paid.unwrap_or(0.0),
+                encode_funding_mode(funding_mode),
                 input.take_profit,
                 input.stop_loss,
                 opened_at.to_rfc3339(),
@@ -2132,9 +2307,9 @@ impl PortfolioRepository {
             "INSERT INTO positions (
                 id, account_id, exchange, exchange_symbol, margin_mode, symbol, side, quantity, entry_price, mark_price,
                 margin_used, liquidation_price, maintenance_margin, maintenance_margin_rate,
-                risk_source, leverage, unrealized_pnl, realized_pnl, fee_paid, funding_paid,
+                risk_source, leverage, unrealized_pnl, realized_pnl, fee_paid, funding_paid, funding_mode,
                 opened_at, notes
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)",
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23)",
             params![
                 identifier,
                 account.id,
@@ -2159,6 +2334,7 @@ impl PortfolioRepository {
                 position.realized_pnl,
                 position.fee_paid,
                 position.funding_paid,
+                encode_funding_mode(FundingMode::ExchangeSync),
                 position.opened_at.to_rfc3339(),
                 Some(format!("Live sync · {}", position.exchange_symbol)),
             ],
@@ -2193,8 +2369,9 @@ impl PortfolioRepository {
                  realized_pnl = ?18,
                  fee_paid = ?19,
                  funding_paid = ?20,
-                 opened_at = ?21,
-                 notes = ?22
+                 funding_mode = ?21,
+                 opened_at = ?22,
+                 notes = ?23
              WHERE id = ?1",
             params![
                 position_id,
@@ -2220,6 +2397,7 @@ impl PortfolioRepository {
                 position.realized_pnl,
                 position.fee_paid,
                 position.funding_paid,
+                encode_funding_mode(FundingMode::ExchangeSync),
                 position.opened_at.to_rfc3339(),
                 Some(format!("Live sync · {}", position.exchange_symbol)),
             ],
@@ -2405,7 +2583,7 @@ impl PortfolioRepository {
                     positions.liquidation_price, positions.maintenance_margin,
                     positions.maintenance_margin_rate, positions.risk_source, positions.leverage,
                     positions.unrealized_pnl, positions.realized_pnl, positions.fee_paid,
-                    positions.funding_paid, positions.take_profit, positions.stop_loss, positions.opened_at, positions.notes
+                    positions.funding_paid, positions.funding_mode, positions.take_profit, positions.stop_loss, positions.opened_at, positions.notes
              FROM positions
              JOIN accounts ON accounts.id = positions.account_id
              WHERE positions.account_id = ?1
@@ -2423,7 +2601,7 @@ impl PortfolioRepository {
                     positions.liquidation_price, positions.maintenance_margin,
                     positions.maintenance_margin_rate, positions.risk_source, positions.leverage,
                     positions.unrealized_pnl, positions.realized_pnl, positions.fee_paid,
-                    positions.funding_paid, positions.take_profit, positions.stop_loss, positions.opened_at, positions.notes
+                    positions.funding_paid, positions.funding_mode, positions.take_profit, positions.stop_loss, positions.opened_at, positions.notes
              FROM positions
              JOIN accounts ON accounts.id = positions.account_id
              ORDER BY positions.opened_at DESC",
@@ -2442,7 +2620,7 @@ impl PortfolioRepository {
                         positions.liquidation_price, positions.maintenance_margin,
                         positions.maintenance_margin_rate, positions.risk_source, positions.leverage,
                         positions.unrealized_pnl, positions.realized_pnl, positions.fee_paid,
-                        positions.funding_paid, positions.take_profit, positions.stop_loss, positions.opened_at, positions.notes
+                        positions.funding_paid, positions.funding_mode, positions.take_profit, positions.stop_loss, positions.opened_at, positions.notes
                  FROM positions
                  JOIN accounts ON accounts.id = positions.account_id
                  WHERE positions.id = ?1
@@ -2599,16 +2777,27 @@ impl PortfolioRepository {
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
     }
 
-    fn fetch_recent_closed_trades(&self, limit: usize) -> AppResult<Vec<ClosedTradeRecord>> {
-        let mut statement = self.connection.prepare(
+    fn fetch_closed_trades(&self, limit: Option<usize>) -> AppResult<Vec<ClosedTradeRecord>> {
+        if limit == Some(0) {
+            return Ok(Vec::new());
+        }
+
+        let mut sql = String::from(
             "SELECT id, account_id, account_name, position_id, exchange, exchange_symbol, margin_mode,
                     symbol, side, quantity, entry_price, exit_price, leverage, realized_pnl,
                     fee_paid, funding_paid, opened_at, closed_at, note
              FROM closed_trades
-             ORDER BY closed_at DESC, id DESC
-             LIMIT ?1",
-        )?;
-        let rows = statement.query_map(params![limit as i64], read_closed_trade_row)?;
+             ORDER BY closed_at DESC, id DESC",
+        );
+        if limit.is_some() {
+            sql.push_str(" LIMIT ?1");
+        }
+        let mut statement = self.connection.prepare(&sql)?;
+        let rows = if let Some(limit) = limit {
+            statement.query_map(params![limit as i64], read_closed_trade_row)?
+        } else {
+            statement.query_map([], read_closed_trade_row)?
+        };
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
     }
 
@@ -2872,7 +3061,9 @@ impl PortfolioRepository {
     }
 
     fn has_exchange_market_column(&self, column_name: &str) -> AppResult<bool> {
-        let mut statement = self.connection.prepare("PRAGMA table_info(exchange_markets)")?;
+        let mut statement = self
+            .connection
+            .prepare("PRAGMA table_info(exchange_markets)")?;
         let mut rows = statement.query([])?;
         while let Some(row) = rows.next()? {
             let name: String = row.get(1)?;
@@ -2936,10 +3127,11 @@ fn read_position_row(row: &Row<'_>) -> Result<PortfolioPosition, rusqlite::Error
         realized_pnl: row.get(18)?,
         fee_paid: row.get(19)?,
         funding_paid: row.get(20)?,
-        take_profit: row.get(21)?,
-        stop_loss: row.get(22)?,
-        opened_at: parse_datetime(row.get::<_, String>(23)?),
-        notes: row.get(24)?,
+        funding_mode: decode_funding_mode(row.get::<_, String>(21)?.as_str()),
+        take_profit: row.get(22)?,
+        stop_loss: row.get(23)?,
+        opened_at: parse_datetime(row.get::<_, String>(24)?),
+        notes: row.get(25)?,
     })
 }
 
@@ -3161,6 +3353,22 @@ fn decode_position_risk_source(raw: &str) -> Option<PositionRiskSource> {
         "user_input" => Some(PositionRiskSource::UserInput),
         "local_engine" => Some(PositionRiskSource::LocalEngine),
         _ => None,
+    }
+}
+
+fn encode_funding_mode(mode: FundingMode) -> &'static str {
+    match mode {
+        FundingMode::Manual => "manual",
+        FundingMode::Auto => "auto",
+        FundingMode::ExchangeSync => "exchange_sync",
+    }
+}
+
+fn decode_funding_mode(raw: &str) -> FundingMode {
+    match raw {
+        "auto" => FundingMode::Auto,
+        "exchange_sync" => FundingMode::ExchangeSync,
+        _ => FundingMode::Manual,
     }
 }
 
@@ -3531,8 +3739,8 @@ mod tests {
 
     use super::*;
     use crate::domain::{
-        ExchangeRiskTier, FundingEntry, MarginMode, PositionEventKind, PositionRiskSource,
-        PositionSide, RiskTierBasis,
+        ExchangeRiskTier, FundingEntry, FundingMode, MarginMode, PositionEventKind,
+        PositionRiskSource, PositionSide, RiskTierBasis,
     };
 
     fn open_test_repo() -> (PortfolioRepository, PathBuf) {
@@ -3641,6 +3849,8 @@ mod tests {
                 realized_pnl: Some(35.0),
                 fee_paid: Some(4.0),
                 funding_paid: Some(1.2),
+                funding_mode: None,
+                opened_at: None,
                 take_profit: None,
                 stop_loss: None,
                 notes: Some("manual live-parity".into()),
@@ -3700,6 +3910,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: None,
                 funding_paid: None,
+                funding_mode: None,
+                opened_at: None,
                 take_profit: None,
                 stop_loss: None,
                 notes: None,
@@ -3758,6 +3970,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: None,
                 funding_paid: None,
+                funding_mode: None,
+                opened_at: None,
                 take_profit: None,
                 stop_loss: None,
                 notes: None,
@@ -3782,6 +3996,8 @@ mod tests {
             realized_pnl: None,
             fee_paid: None,
             funding_paid: None,
+            funding_mode: None,
+            opened_at: None,
             take_profit: None,
             stop_loss: None,
             notes: None,
@@ -3902,6 +4118,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: Some(4.0),
                 funding_paid: Some(1.0),
+                funding_mode: None,
+                opened_at: None,
                 take_profit: None,
                 stop_loss: None,
                 notes: Some("manual open".into()),
@@ -3926,6 +4144,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: Some(5.0),
                 funding_paid: Some(1.5),
+                funding_mode: None,
+                opened_at: None,
                 take_profit: None,
                 stop_loss: None,
                 notes: Some("manual adjust".into()),
@@ -3938,7 +4158,6 @@ mod tests {
         let events = repo
             .fetch_recent_position_events(10)
             .expect("position events should load");
-
         assert_eq!(events.len(), 3);
         assert_eq!(events[0].event_kind, PositionEventKind::Closed);
         assert_eq!(events[1].event_kind, PositionEventKind::Adjusted);
@@ -4297,6 +4516,13 @@ mod tests {
                 .len(),
             0
         );
+        let closed_trades = repo
+            .fetch_closed_trades(None)
+            .expect("closed trades should load");
+        assert_eq!(closed_trades.len(), 1);
+        assert_eq!(closed_trades[0].symbol, "BTC-PERP");
+        assert!(approx_equal(closed_trades[0].exit_price, 70600.0));
+        assert!(approx_equal(closed_trades[0].realized_pnl, 120.0));
 
         drop(repo);
         let _ = std::fs::remove_dir_all(root);
@@ -4351,6 +4577,8 @@ mod tests {
             realized_pnl: None,
             fee_paid: Some(2.0),
             funding_paid: Some(0.0),
+            funding_mode: None,
+            opened_at: None,
             take_profit: None,
             stop_loss: None,
             notes: None,
@@ -4375,6 +4603,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: Some(1.0),
                 funding_paid: Some(0.5),
+                funding_mode: None,
+                opened_at: None,
                 take_profit: None,
                 stop_loss: None,
                 notes: Some("csv".into()),
@@ -4618,6 +4848,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: Some(2.0),
                 funding_paid: Some(1.0),
+                funding_mode: None,
+                opened_at: None,
                 take_profit: None,
                 stop_loss: None,
                 notes: None,
@@ -4696,6 +4928,75 @@ mod tests {
     }
 
     #[test]
+    fn auto_funding_updates_reprice_non_live_exchange_positions() {
+        let (repo, root) = open_test_repo();
+        let account = repo
+            .create_account(CreateAccountInput {
+                name: "Auto Funding Desk".into(),
+                exchange: ExchangeKind::Blofin,
+                wallet_balance: 5000.0,
+                notes: None,
+                bonus_balance: None,
+                bonus_fee_deduction_rate: None,
+                bonus_loss_deduction_rate: None,
+                bonus_funding_deduction_rate: None,
+            })
+            .expect("manual account should be created");
+        repo.upsert_exchange_markets(&[sample_blofin_eth_market(1600.0)])
+            .expect("market catalog should upsert");
+
+        let position = repo
+            .add_manual_position(ManualPositionInput {
+                account_id: account.id.clone(),
+                exchange: ExchangeKind::Blofin,
+                exchange_symbol: Some("ETH-USDT".into()),
+                symbol: "ETH-PERP".into(),
+                margin_mode: Some(MarginMode::Cross),
+                side: PositionSide::Long,
+                quantity: 10.0,
+                entry_price: 1500.0,
+                mark_price: Some(1600.0),
+                margin_used: Some(300.0),
+                liquidation_price: None,
+                maintenance_margin: None,
+                leverage: 5.0,
+                realized_pnl: None,
+                fee_paid: Some(0.0),
+                funding_paid: None,
+                funding_mode: Some(FundingMode::Auto),
+                opened_at: Some(
+                    Utc.with_ymd_and_hms(2026, 1, 12, 10, 0, 0)
+                        .single()
+                        .expect("timestamp should be valid"),
+                ),
+                take_profit: None,
+                stop_loss: None,
+                notes: None,
+            })
+            .expect("auto-funded position should be created");
+
+        assert_eq!(position.funding_mode, FundingMode::Auto);
+
+        let updated = repo
+            .apply_auto_funding_updates(&[AutoFundingUpdate {
+                position_id: position.id.clone(),
+                funding_paid: 2.0,
+            }])
+            .expect("auto funding update should succeed");
+
+        assert_eq!(updated, 1);
+        let repriced = repo
+            .get_position(&position.id)
+            .expect("repriced position should load");
+        assert_eq!(repriced.funding_mode, FundingMode::Auto);
+        assert!(approx_equal(repriced.funding_paid, 2.0));
+        assert!(approx_equal(repriced.unrealized_pnl, 98.0));
+
+        drop(repo);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn upserts_and_lists_cached_exchange_markets() {
         let (repo, root) = open_test_repo();
 
@@ -4717,6 +5018,39 @@ mod tests {
         assert_eq!(markets[0].symbol, "BTC-PERP");
         assert_eq!(markets[0].mark_price, Some(62500.0));
         assert_eq!(markets[0].oracle_price, Some(62450.0));
+
+        drop(repo);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn listed_exchange_markets_overlay_cached_quote_fields() {
+        let (repo, root) = open_test_repo();
+
+        repo.upsert_exchange_markets(&[sample_blofin_market(None)])
+            .expect("market catalog should upsert");
+        repo.apply_market_quotes(&[MarketQuote {
+            exchange: ExchangeKind::Blofin,
+            exchange_symbol: "BTC-USDT".into(),
+            symbol: "BTC-PERP".into(),
+            mark_price: Some(62125.0),
+            oracle_price: Some(62100.0),
+            funding_rate: Some(0.0002),
+            next_funding_time: Some(Utc::now()),
+            as_of: Utc::now(),
+        }])
+        .expect("quote cache should update");
+
+        let markets = repo
+            .list_exchange_markets(ExchangeKind::Blofin)
+            .expect("cached markets should list");
+
+        assert_eq!(markets.len(), 1);
+        assert_eq!(markets[0].exchange_symbol, "BTC-USDT");
+        assert_eq!(markets[0].mark_price, Some(62125.0));
+        assert_eq!(markets[0].oracle_price, Some(62100.0));
+        assert_eq!(markets[0].funding_rate, Some(0.0002));
+        assert!(markets[0].next_funding_time.is_some());
 
         drop(repo);
         let _ = std::fs::remove_dir_all(root);
@@ -4770,6 +5104,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: Some(2.0),
                 funding_paid: Some(1.0),
+                funding_mode: None,
+                opened_at: None,
                 take_profit: None,
                 stop_loss: None,
                 notes: None,
@@ -4822,6 +5158,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: Some(0.0),
                 funding_paid: Some(0.0),
+                funding_mode: None,
+                opened_at: None,
                 take_profit: None,
                 stop_loss: None,
                 notes: None,
@@ -4830,7 +5168,6 @@ mod tests {
         assert!(leverage_error
             .to_string()
             .contains("exceeds max leverage 50"));
-
 
         drop(repo);
         let _ = std::fs::remove_dir_all(root);
@@ -4873,6 +5210,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: Some(1.0),
                 funding_paid: Some(0.5),
+                funding_mode: None,
+                opened_at: None,
                 take_profit: None,
                 stop_loss: None,
                 notes: None,
@@ -4897,6 +5236,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: Some(1.2),
                 funding_paid: Some(0.5),
+                funding_mode: None,
+                opened_at: None,
                 take_profit: None,
                 stop_loss: None,
                 notes: Some("resized".into()),
@@ -5048,6 +5389,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: Some(2.0),
                 funding_paid: Some(1.0),
+                funding_mode: None,
+                opened_at: None,
                 take_profit: None,
                 stop_loss: None,
                 notes: None,
@@ -5109,6 +5452,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: Some(0.0),
                 funding_paid: Some(0.0),
+                funding_mode: None,
+                opened_at: None,
                 take_profit: None,
                 stop_loss: None,
                 notes: None,
@@ -5133,6 +5478,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: Some(3.0),
                 funding_paid: Some(2.0),
+                funding_mode: None,
+                opened_at: None,
                 take_profit: None,
                 stop_loss: None,
                 notes: Some("scaled".into()),
@@ -5189,6 +5536,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: Some(2.0),
                 funding_paid: Some(1.0),
+                funding_mode: None,
+                opened_at: None,
                 take_profit: None,
                 stop_loss: None,
                 notes: None,
@@ -5253,6 +5602,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: Some(0.0),
                 funding_paid: Some(0.0),
+                funding_mode: None,
+                opened_at: None,
                 take_profit: None,
                 stop_loss: None,
                 notes: None,
@@ -5300,6 +5651,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: Some(0.0),
                 funding_paid: Some(0.0),
+                funding_mode: None,
+                opened_at: None,
                 take_profit: None,
                 stop_loss: None,
                 notes: None,
@@ -5349,6 +5702,75 @@ mod tests {
     }
 
     #[test]
+    fn partial_close_allocates_existing_fee_and_funding_to_closed_slice() {
+        let (repo, root) = open_test_repo();
+        let account = repo
+            .create_account(CreateAccountInput {
+                name: "Carry Costs".into(),
+                exchange: ExchangeKind::Manual,
+                wallet_balance: 2000.0,
+                notes: None,
+                bonus_balance: None,
+                bonus_fee_deduction_rate: None,
+                bonus_loss_deduction_rate: None,
+                bonus_funding_deduction_rate: None,
+            })
+            .expect("manual account should be created");
+
+        let created = repo
+            .add_manual_position(ManualPositionInput {
+                account_id: account.id.clone(),
+                exchange: ExchangeKind::Manual,
+                exchange_symbol: None,
+                symbol: "BTCUSDT".into(),
+                margin_mode: Some(MarginMode::Cross),
+                side: PositionSide::Long,
+                quantity: 2.0,
+                entry_price: 100.0,
+                mark_price: Some(100.0),
+                margin_used: None,
+                liquidation_price: None,
+                maintenance_margin: None,
+                leverage: 5.0,
+                realized_pnl: None,
+                fee_paid: Some(4.0),
+                funding_paid: Some(2.0),
+                funding_mode: None,
+                opened_at: None,
+                take_profit: None,
+                stop_loss: None,
+                notes: None,
+            })
+            .expect("position should be created");
+
+        let result = repo
+            .close_manual_position(CloseManualPositionInput {
+                position_id: created.id.clone(),
+                quantity: Some(1.0),
+                exit_price: 120.0,
+                fee_paid: Some(1.0),
+                funding_paid: Some(0.5),
+                closed_at: None,
+                note: None,
+            })
+            .expect("partial close should succeed");
+
+        assert!(approx_equal(result.closed_trade.fee_paid, 3.0));
+        assert!(approx_equal(result.closed_trade.funding_paid, 1.5));
+        assert!(approx_equal(result.closed_trade.realized_pnl, 15.5));
+
+        let remaining = result
+            .remaining_position
+            .expect("remaining position should exist");
+        assert!(approx_equal(remaining.quantity, 1.0));
+        assert!(approx_equal(remaining.fee_paid, 2.0));
+        assert!(approx_equal(remaining.funding_paid, 1.0));
+
+        drop(repo);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn query_closed_trades_filters_and_rejects_inverted_time_windows() {
         let (repo, root) = open_test_repo();
         let account = repo
@@ -5382,6 +5804,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: Some(0.0),
                 funding_paid: Some(0.0),
+                funding_mode: None,
+                opened_at: None,
                 take_profit: None,
                 stop_loss: None,
                 notes: None,
@@ -5405,6 +5829,8 @@ mod tests {
                 realized_pnl: None,
                 fee_paid: Some(0.0),
                 funding_paid: Some(0.0),
+                funding_mode: None,
+                opened_at: None,
                 take_profit: None,
                 stop_loss: None,
                 notes: None,
@@ -5484,37 +5910,37 @@ mod tests {
             )
             .expect("live account should be created");
         repo.sync_live_account(
-                &account.id,
-                &AccountSnapshot {
-                    wallet_balance: 1000.0,
-                    available_balance: 900.0,
-                    snapshot_equity: 1010.0,
-                    currency: "USDC".into(),
-                },
-                &[SyncedPosition {
-                    exchange_symbol: "BTC".into(),
-                    symbol: "BTC-PERP".into(),
-                    margin_mode: Some(MarginMode::Cross),
-                    side: PositionSide::Long,
-                    quantity: 0.1,
-                    entry_price: 70000.0,
-                    mark_price: Some(70100.0),
-                    margin_used: Some(700.0),
-                    liquidation_price: Some(64000.0),
-                    maintenance_margin: Some(50.0),
-                    maintenance_margin_rate: None,
-                    risk_source: None,
-                    leverage: 10.0,
-                    unrealized_pnl: 10.0,
-                    realized_pnl: 0.0,
-                    fee_paid: 0.0,
-                    funding_paid: 0.0,
-                    opened_at: Utc::now(),
-                }],
-                &[],
-                None,
-            )
-            .expect("live sync should succeed");
+            &account.id,
+            &AccountSnapshot {
+                wallet_balance: 1000.0,
+                available_balance: 900.0,
+                snapshot_equity: 1010.0,
+                currency: "USDC".into(),
+            },
+            &[SyncedPosition {
+                exchange_symbol: "BTC".into(),
+                symbol: "BTC-PERP".into(),
+                margin_mode: Some(MarginMode::Cross),
+                side: PositionSide::Long,
+                quantity: 0.1,
+                entry_price: 70000.0,
+                mark_price: Some(70100.0),
+                margin_used: Some(700.0),
+                liquidation_price: Some(64000.0),
+                maintenance_margin: Some(50.0),
+                maintenance_margin_rate: None,
+                risk_source: None,
+                leverage: 10.0,
+                unrealized_pnl: 10.0,
+                realized_pnl: 0.0,
+                fee_paid: 0.0,
+                funding_paid: 0.0,
+                opened_at: Utc::now(),
+            }],
+            &[],
+            None,
+        )
+        .expect("live sync should succeed");
         let position = repo
             .fetch_positions_for_account(&account.id)
             .expect("live positions should load")

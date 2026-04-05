@@ -3,6 +3,13 @@ use std::{
     sync::Arc,
 };
 
+use crate::{
+    domain::{
+        ClosedTradeQueryInput, ExchangeKind, LanStatus, PositionEventKind, PositionEventQueryInput,
+    },
+    error::AppResult,
+    AppServices,
+};
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
@@ -19,14 +26,6 @@ use serde::Deserialize;
 use tokio::{
     net::TcpListener,
     sync::{broadcast, oneshot},
-};
-use crate::{
-    domain::{
-        ClosedTradeQueryInput, ExchangeKind, LanStatus, PositionEventKind,
-        PositionEventQueryInput,
-    },
-    error::AppResult,
-    AppServices,
 };
 
 const DEFAULT_PORT: u16 = 46666;

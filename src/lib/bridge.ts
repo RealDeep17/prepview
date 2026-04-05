@@ -17,6 +17,8 @@ import type {
     ManualPositionInput,
     MarketQuote,
     PortfolioPosition,
+    PositionFundingEstimate,
+    PositionFundingEstimateInput,
     PositionEventQueryInput,
     PositionEventRecord,
     QuoteRefreshResult,
@@ -111,6 +113,11 @@ export async function getExchangeMarketQuote(
     exchange,
     exchangeSymbol,
   });
+}
+
+export async function previewPositionFunding(input: PositionFundingEstimateInput) {
+  assertTauri();
+  return invoke<PositionFundingEstimate>('preview_position_funding', { input });
 }
 
 export async function getPositionEvents(input?: PositionEventQueryInput) {
