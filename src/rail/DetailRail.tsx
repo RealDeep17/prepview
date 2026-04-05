@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAppStore, selectedPosition } from '../store/appStore';
-import { fmtCurrency, fmtPnl, fmtPnlClass, fmtPercent, fmtTimestamp, fmtRelativeTime } from '../lib/fmt';
+import { findExchangeMarket, fmtCompactCurrency, fmtCompactNumber, fmtCostClass, fmtCurrency, fmtPnl, fmtPnlClass, fmtPercent, fmtTimestamp, fmtRelativeTime } from '../lib/fmt';
 import { deleteManualPosition, syncLiveAccount, setLanProjection, resetDatabase } from '../lib/bridge';
 import { useToast } from '../shell/toastContext';
 
@@ -42,7 +42,12 @@ export function DetailRail() {
       const fundingOffset = position.fundingPaid * posAccount.bonusFundingDeductionRate;
       positionBonusOffset = Math.min(feeOffset + lossOffset + fundingOffset, posAccount.bonusBalance);
     }
-    const market = bootstrap.markets.find((m) => m.symbol.toUpperCase() === position.symbol.toUpperCase() && m.exchange.toLowerCase() === position.exchange.toLowerCase());
+    const market = findExchangeMarket(
+      bootstrap.markets,
+      position.exchange,
+      position.symbol,
+      position.exchangeSymbol,
+    );
     const faceValue = market?.contractValue ?? 1.0;
     const tokenSize = position.quantity * faceValue;
     const notional = (position.markPrice ?? position.entryPrice) * tokenSize;
@@ -58,14 +63,14 @@ export function DetailRail() {
         </div>
 
         <div className="panel-title">Position Detail</div>
-        <DetailRow label="Entry Price" value={fmtCurrency(position.entryPrice)} />
-        <DetailRow label="Mark Price" value={position.markPrice != null ? fmtCurrency(position.markPrice) : '—'} />
+        <DetailRow label="Entry Price" value={fmtCompactCurrency(position.entryPrice)} />
+        <DetailRow label="Mark Price" value={position.markPrice != null ? fmtCompactCurrency(position.markPrice) : '—'} />
         <DetailRow
           label="Liquidation"
-          value={position.liquidationPrice != null ? fmtCurrency(position.liquidationPrice) : '—'}
+          value={position.liquidationPrice != null ? fmtCompactCurrency(position.liquidationPrice) : '—'}
           suffix={position.riskSource === 'local_engine' ? 'est.' : position.riskSource === 'user_input' ? 'manual' : undefined}
         />
-        <DetailRow label="Size" value={`${tokenSize % 1 === 0 ? tokenSize.toFixed(0) : tokenSize.toPrecision(6).replace(/\.?0+$/, '')}`} suffix={market?.baseAsset} />
+        <DetailRow label="Size" value={fmtCompactNumber(tokenSize, 6)} suffix={market?.baseAsset} />
         <DetailRow label="Notional" value={fmtCurrency(notional)} />
         <DetailRow label="Leverage" value={`${position.leverage}×`} />
         {position.marginMode && <DetailRow label="Margin Mode" value={position.marginMode} />}
@@ -83,11 +88,11 @@ export function DetailRail() {
         <DetailRow label="Realized" value={fmtCurrency(position.realizedPnl)} />
         <div className="detail-row">
           <span className="detail-label">Fees Paid</span>
-          <span className="detail-value pnl-negative">{fmtCurrency(position.feePaid)}</span>
+          <span className={`detail-value ${fmtCostClass(position.feePaid)}`.trim()}>{fmtCurrency(position.feePaid)}</span>
         </div>
         <div className="detail-row">
           <span className="detail-label">Funding Paid</span>
-          <span className="detail-value pnl-negative">{fmtCurrency(position.fundingPaid)}</span>
+          <span className={`detail-value ${fmtCostClass(position.fundingPaid)}`.trim()}>{fmtCurrency(position.fundingPaid)}</span>
         </div>
         {positionBonusOffset > 0 && (
           <div className="detail-row">
@@ -98,13 +103,13 @@ export function DetailRail() {
         {position.takeProfit != null && (
           <div className="detail-row">
             <span className="detail-label">Take Profit</span>
-            <span className="detail-value" style={{ color: 'var(--green)' }}>{fmtCurrency(position.takeProfit)}</span>
+            <span className="detail-value" style={{ color: 'var(--green)' }}>{fmtCompactCurrency(position.takeProfit)}</span>
           </div>
         )}
         {position.stopLoss != null && (
           <div className="detail-row">
             <span className="detail-label">Stop Loss</span>
-            <span className="detail-value" style={{ color: 'var(--red)' }}>{fmtCurrency(position.stopLoss)}</span>
+            <span className="detail-value" style={{ color: 'var(--red)' }}>{fmtCompactCurrency(position.stopLoss)}</span>
           </div>
         )}
         <DetailRow label="Opened" value={fmtTimestamp(position.openedAt)} />

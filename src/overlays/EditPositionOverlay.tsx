@@ -1,9 +1,30 @@
 import { useState } from 'react';
 import { useAppStore } from '../store/appStore';
 import { updateManualPosition, closeManualPosition } from '../lib/bridge';
-import type { ExchangeMarket, MarginMode, PositionSide } from '../lib/types';
+import { findExchangeMarket } from '../lib/fmt';
+import type { MarginMode, PositionSide } from '../lib/types';
 
 type QuantityMode = 'contract' | 'token' | 'usd';
+
+function convertQuantityValue(
+  value: string,
+  oldMode: QuantityMode,
+  newMode: QuantityMode,
+  faceValue: number,
+  entryPrice: number,
+): string {
+  if (!value || Number.isNaN(parseFloat(value))) return value;
+
+  let rawContracts = parseFloat(value);
+  if (oldMode === 'token') rawContracts = rawContracts / faceValue;
+  else if (oldMode === 'usd') rawContracts = rawContracts / (entryPrice * faceValue);
+
+  let nextValue = rawContracts;
+  if (newMode === 'token') nextValue = rawContracts * faceValue;
+  else if (newMode === 'usd') nextValue = rawContracts * faceValue * entryPrice;
+
+  return String(Number(nextValue.toFixed(8)));
+}
 
 export function EditPositionOverlay() {
   const closeOverlay = useAppStore((s) => s.closeOverlay);
@@ -17,13 +38,34 @@ export function EditPositionOverlay() {
 
   const [showClose, setShowClose] = useState(false);
 
+  const currentMarket = position
+    ? findExchangeMarket(
+        bootstrap?.markets ?? [],
+        position.exchange,
+        position.symbol,
+        position.exchangeSymbol,
+      )
+    : undefined;
+  const currentFaceValue = currentMarket?.contractValue ?? 1.0;
+  const currentEntryPrice = position?.entryPrice ?? 1.0;
+
   // Edit fields
   const [symbol, setSymbol] = useState(() => position?.symbol ?? '');
   const [exchangeSymbol, setExchangeSymbol] = useState(() => position?.exchangeSymbol ?? '');
   const [side, setSide] = useState<PositionSide>(() => position?.side ?? 'long');
   const [marginMode, setMarginMode] = useState<MarginMode | ''>(() => position?.marginMode ?? '');
-  const [quantityMode, setQuantityMode] = useState<QuantityMode>('contract');
-  const [quantity, setQuantity] = useState(() => position ? String(position.quantity) : '');
+  const [quantityMode, setQuantityMode] = useState<QuantityMode>('token');
+  const [quantity, setQuantity] = useState(() => (
+    position
+      ? convertQuantityValue(
+          String(position.quantity),
+          'contract',
+          'token',
+          currentFaceValue,
+          currentEntryPrice,
+        )
+      : ''
+  ));
   const [entryPrice, setEntryPrice] = useState(() => position ? String(position.entryPrice) : '');
   const [markPrice, setMarkPrice] = useState(() => position?.markPrice != null ? String(position.markPrice) : '');
   const [leverage, setLeverage] = useState(() => position ? String(position.leverage) : '');
@@ -55,29 +97,10 @@ export function EditPositionOverlay() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const currentMarket: ExchangeMarket | undefined = position
-    ? bootstrap?.markets.find(
-        (market) =>
-          market.symbol.toUpperCase() === position.symbol.toUpperCase() &&
-          market.exchange.toLowerCase() === position.exchange.toLowerCase(),
-      )
-    : undefined;
-
   const convertQty = (valStr: string, oldMode: QuantityMode, newMode: QuantityMode): string => {
-    if (!valStr || isNaN(parseFloat(valStr))) return valStr;
-    const currentVal = parseFloat(valStr);
     const faceValue = currentMarket?.contractValue ?? 1.0;
     const entryPx = parseFloat(entryPrice) || position?.entryPrice || 1.0;
-
-    let rawContracts = currentVal;
-    if (oldMode === 'token') rawContracts = currentVal / faceValue;
-    else if (oldMode === 'usd') rawContracts = currentVal / (entryPx * faceValue);
-
-    let newVal = rawContracts;
-    if (newMode === 'token') newVal = rawContracts * faceValue;
-    else if (newMode === 'usd') newVal = rawContracts * faceValue * entryPx;
-
-    return String(Number(newVal.toFixed(8)));
+    return convertQuantityValue(valStr, oldMode, newMode, faceValue, entryPx);
   };
 
   const handleModeSwitch = (newMode: QuantityMode) => {

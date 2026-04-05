@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAppStore } from '../store/appStore';
 import { getPositionEvents, getClosedTrades } from '../lib/bridge';
-import { fmtCurrency, fmtPnl, fmtPnlClass, fmtTimestamp, fmtNumber } from '../lib/fmt';
+import { findExchangeMarket, fmtCompactCurrency, fmtCompactNumber, fmtCostClass, fmtCurrency, fmtPnl, fmtPnlClass, fmtTimestamp } from '../lib/fmt';
 import type { PositionEventRecord, ClosedTradeRecord } from '../lib/types';
 
 interface Props {
@@ -84,17 +84,17 @@ export function JournalPane({ showClosed }: Props) {
                   </span>
                 </td>
                 <td className="num">
-                  {fmtNumber(
-                    trade.quantity * (bootstrap.markets.find((m) => m.symbol.toUpperCase() === trade.symbol.toUpperCase() && m.exchange.toLowerCase() === trade.exchange.toLowerCase())?.contractValue ?? 1.0),
-                    4
+                  {fmtCompactNumber(
+                    trade.quantity * (findExchangeMarket(bootstrap.markets, trade.exchange, trade.symbol, trade.exchangeSymbol)?.contractValue ?? 1.0),
+                    4,
                   )}
                 </td>
-                <td className="num">{fmtCurrency(trade.entryPrice)}</td>
-                <td className="num">{fmtCurrency(trade.exitPrice)}</td>
+                <td className="num">{fmtCompactCurrency(trade.entryPrice)}</td>
+                <td className="num">{fmtCompactCurrency(trade.exitPrice)}</td>
                 <td className="num">{trade.leverage}×</td>
                 <td className={`num ${fmtPnlClass(trade.realizedPnl)}`}>{fmtPnl(trade.realizedPnl)}</td>
-                <td className="num pnl-negative">{fmtCurrency(trade.feePaid)}</td>
-                <td className="num pnl-negative">{fmtCurrency(trade.fundingPaid)}</td>
+                <td className={`num ${fmtCostClass(trade.feePaid)}`.trim()}>{fmtCurrency(trade.feePaid)}</td>
+                <td className={`num ${fmtCostClass(trade.fundingPaid)}`.trim()}>{fmtCurrency(trade.fundingPaid)}</td>
               </tr>
             ))}
           </tbody>
@@ -152,13 +152,13 @@ export function JournalPane({ showClosed }: Props) {
                 </span>
               </td>
               <td className="num">
-                {fmtNumber(
-                  event.quantity * (bootstrap.markets.find((m) => m.symbol.toUpperCase() === event.symbol.toUpperCase() && m.exchange.toLowerCase() === event.exchange.toLowerCase())?.contractValue ?? 1.0),
-                  4
+                {fmtCompactNumber(
+                  event.quantity * (findExchangeMarket(bootstrap.markets, event.exchange, event.symbol, event.exchangeSymbol)?.contractValue ?? 1.0),
+                  4,
                 )}
               </td>
-              <td className="num">{fmtCurrency(event.entryPrice)}</td>
-              <td className="num">{event.markPrice != null ? fmtCurrency(event.markPrice) : '—'}</td>
+              <td className="num">{fmtCompactCurrency(event.entryPrice)}</td>
+              <td className="num">{event.markPrice != null ? fmtCompactCurrency(event.markPrice) : '—'}</td>
               <td className={`num ${fmtPnlClass(event.eventKind === 'closed' ? event.realizedPnl : event.unrealizedPnl)}`}>
                 {fmtPnl(event.eventKind === 'closed' ? event.realizedPnl : event.unrealizedPnl)}
               </td>

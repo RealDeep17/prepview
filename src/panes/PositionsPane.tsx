@@ -1,9 +1,173 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useAppStore } from '../store/appStore';
 import { useContextMenu, type CtxMenuItem } from '../shell/contextMenuContext';
 import { useToast } from '../shell/toastContext';
-import { fmtCurrency, fmtPnl, fmtPnlClass, fmtNumber } from '../lib/fmt';
+import {
+  fmtCompactCurrency,
+  findExchangeMarket,
+  fmtCompactNumber,
+  fmtCurrency,
+  fmtPnl,
+  fmtPnlClass,
+} from '../lib/fmt';
 import { deleteManualPosition, syncLiveAccount } from '../lib/bridge';
+import type { PositionColumnKey } from '../lib/positionView';
+import type { ExchangeMarket, PortfolioPosition } from '../lib/types';
+
+type PositionRow = {
+  pos: PortfolioPosition;
+  market?: ExchangeMarket;
+  tokenSize: number;
+  notional: number;
+  index: number;
+};
+
+const positionColumnDefinitions: Record<
+  PositionColumnKey,
+  {
+    label: string;
+    numeric?: boolean;
+    sortable?: boolean;
+    render: (row: PositionRow) => ReactNode;
+  }
+> = {
+  symbol: {
+    label: 'Symbol',
+    sortable: true,
+    render: ({ pos }) => <span className="mono" style={{ fontWeight: 600 }}>{pos.symbol}</span>,
+  },
+  account: {
+    label: 'Account',
+    sortable: true,
+    render: ({ pos }) => pos.accountName,
+  },
+  side: {
+    label: 'Side',
+    sortable: true,
+    render: ({ pos }) => (
+      <span className={`side-tag side-tag--${pos.side}`}>
+        {pos.side === 'long' ? 'Long' : 'Short'}
+      </span>
+    ),
+  },
+  margin: {
+    label: 'Margin',
+    sortable: true,
+    render: ({ pos }) => pos.marginMode ? <span className="margin-tag">{pos.marginMode}</span> : '—',
+  },
+  size: {
+    label: 'Size',
+    numeric: true,
+    sortable: true,
+    render: ({ tokenSize }) => fmtCompactNumber(tokenSize, 4),
+  },
+  entry: {
+    label: 'Entry',
+    numeric: true,
+    sortable: true,
+    render: ({ pos }) => fmtCompactCurrency(pos.entryPrice),
+  },
+  mark: {
+    label: 'Mark',
+    numeric: true,
+    sortable: true,
+    render: ({ pos }) => pos.markPrice != null ? fmtCompactCurrency(pos.markPrice) : '—',
+  },
+  liq: {
+    label: 'Liq. Price',
+    numeric: true,
+    sortable: true,
+    render: ({ pos }) => (
+      <>
+        {pos.liquidationPrice != null ? fmtCompactCurrency(pos.liquidationPrice) : '—'}
+        {pos.riskSource === 'local_engine' && <span className="risk-chip">est.</span>}
+        {pos.riskSource === 'user_input' && <span className="risk-chip">manual</span>}
+      </>
+    ),
+  },
+  tp: {
+    label: 'TP',
+    numeric: true,
+    sortable: true,
+    render: ({ pos }) => (
+      <span style={{ color: pos.takeProfit != null ? 'var(--green)' : undefined }}>
+        {pos.takeProfit != null ? fmtCompactCurrency(pos.takeProfit) : '—'}
+      </span>
+    ),
+  },
+  sl: {
+    label: 'SL',
+    numeric: true,
+    sortable: true,
+    render: ({ pos }) => (
+      <span style={{ color: pos.stopLoss != null ? 'var(--red)' : undefined }}>
+        {pos.stopLoss != null ? fmtCompactCurrency(pos.stopLoss) : '—'}
+      </span>
+    ),
+  },
+  lev: {
+    label: 'Lev',
+    numeric: true,
+    sortable: true,
+    render: ({ pos }) => `${pos.leverage}×`,
+  },
+  marginUsed: {
+    label: 'Margin Used',
+    numeric: true,
+    sortable: true,
+    render: ({ pos }) => pos.marginUsed != null ? fmtCurrency(pos.marginUsed) : '—',
+  },
+  unrealizedPnl: {
+    label: 'Unrealized P&L',
+    numeric: true,
+    sortable: true,
+    render: ({ pos }) => (
+      <span className={fmtPnlClass(pos.unrealizedPnl)}>
+        {fmtPnl(pos.unrealizedPnl)}
+      </span>
+    ),
+  },
+  notional: {
+    label: 'Notional',
+    numeric: true,
+    sortable: true,
+    render: ({ notional }) => fmtCurrency(notional),
+  },
+};
+
+function getPositionSortValue(row: PositionRow, key: PositionColumnKey): number | string | null {
+  const { pos, tokenSize, notional } = row;
+  switch (key) {
+    case 'symbol':
+      return pos.symbol;
+    case 'account':
+      return pos.accountName;
+    case 'side':
+      return pos.side;
+    case 'margin':
+      return pos.marginMode ?? null;
+    case 'size':
+      return tokenSize;
+    case 'entry':
+      return pos.entryPrice;
+    case 'mark':
+      return pos.markPrice ?? null;
+    case 'liq':
+      return pos.liquidationPrice ?? null;
+    case 'tp':
+      return pos.takeProfit ?? null;
+    case 'sl':
+      return pos.stopLoss ?? null;
+    case 'lev':
+      return pos.leverage;
+    case 'marginUsed':
+      return pos.marginUsed ?? null;
+    case 'unrealizedPnl':
+      return pos.unrealizedPnl;
+    case 'notional':
+      return notional;
+  }
+}
 
 export function PositionsPane() {
   const bootstrap = useAppStore((s) => s.bootstrap);
@@ -11,6 +175,10 @@ export function PositionsPane() {
   const scopeAccountId = useAppStore((s) => s.scopeAccountId);
   const selectedPositionId = useAppStore((s) => s.selectedPositionId);
   const setSelectedPositionId = useAppStore((s) => s.setSelectedPositionId);
+  const positionColumns = useAppStore((s) => s.positionColumns);
+  const positionSortKey = useAppStore((s) => s.positionSortKey);
+  const positionSortDirection = useAppStore((s) => s.positionSortDirection);
+  const togglePositionSort = useAppStore((s) => s.togglePositionSort);
   const openOverlay = useAppStore((s) => s.openOverlay);
   const fetchBootstrap = useAppStore((s) => s.fetchBootstrap);
   const { show: showCtx } = useContextMenu();
@@ -31,6 +199,45 @@ export function PositionsPane() {
     const accountIds = new Set(accounts.map((account) => account.id));
     return bootstrap.positions.filter((position) => accountIds.has(position.accountId));
   }, [bootstrap, scopeAccountId, scopeExchange]);
+
+  const rows = useMemo(() => {
+    if (!bootstrap) return [];
+
+    return positions
+      .map((pos, index) => {
+        const market = findExchangeMarket(bootstrap.markets, pos.exchange, pos.symbol, pos.exchangeSymbol);
+        const faceValue = market?.contractValue ?? 1.0;
+        const tokenSize = pos.quantity * faceValue;
+        const notional = (pos.markPrice ?? pos.entryPrice) * tokenSize;
+        return { pos, market, tokenSize, notional, index };
+      })
+      .sort((left, right) => {
+        if (!positionSortKey) return left.index - right.index;
+
+        const leftValue = getPositionSortValue(left, positionSortKey);
+        const rightValue = getPositionSortValue(right, positionSortKey);
+        const leftMissing = leftValue == null || leftValue === '';
+        const rightMissing = rightValue == null || rightValue === '';
+
+        if (leftMissing && rightMissing) return left.index - right.index;
+        if (leftMissing) return 1;
+        if (rightMissing) return -1;
+
+        let comparison = 0;
+        if (typeof leftValue === 'number' && typeof rightValue === 'number') {
+          comparison = leftValue - rightValue;
+        } else {
+          comparison = String(leftValue).localeCompare(String(rightValue), undefined, {
+            sensitivity: 'base',
+          });
+        }
+
+        if (comparison === 0) return left.index - right.index;
+        return comparison * (positionSortDirection === 'asc' ? 1 : -1);
+      });
+  }, [bootstrap, positionSortDirection, positionSortKey, positions]);
+
+  const visibleColumns = positionColumns.filter((column) => positionColumnDefinitions[column]);
 
   const handleDelete = async (posId: string, posSymbol: string) => {
     try {
@@ -93,75 +300,50 @@ export function PositionsPane() {
     <table className="data-table">
       <thead>
         <tr>
-          <th>Symbol</th>
-          <th>Account</th>
-          <th>Side</th>
-          <th>Margin</th>
-          <th className="num">Size</th>
-          <th className="num">Entry</th>
-          <th className="num">Mark</th>
-          <th className="num">Liq. Price</th>
-          <th className="num">TP</th>
-          <th className="num">SL</th>
-          <th className="num">Lev</th>
-          <th className="num">Margin Used</th>
-          <th className="num">Unrealized P&amp;L</th>
-          <th className="num">Notional</th>
+          {visibleColumns.map((column) => {
+            const definition = positionColumnDefinitions[column];
+            const sortableClass = definition.sortable ? 'data-table-sortable' : '';
+            const isSorted = positionSortKey === column;
+            return (
+              <th
+                key={column}
+                className={`${definition.numeric ? 'num ' : ''}${sortableClass}`.trim()}
+                onClick={definition.sortable ? () => togglePositionSort(column) : undefined}
+              >
+                <span className="th-content">
+                  {definition.label}
+                  {isSorted && (
+                    <span className="sort-indicator">{positionSortDirection === 'asc' ? '↑' : '↓'}</span>
+                  )}
+                </span>
+              </th>
+            );
+          })}
         </tr>
       </thead>
       <tbody>
-        {positions.map((pos) => {
-          const market = bootstrap?.markets?.find(m => m.symbol.toUpperCase() === pos.symbol.toUpperCase() && m.exchange.toLowerCase() === pos.exchange.toLowerCase());
-          const faceValue = market?.contractValue ?? 1.0;
-          const tokenSize = pos.quantity * faceValue;
-          const notional = (pos.markPrice ?? pos.entryPrice) * tokenSize;
-          return (
-            <tr
-              key={pos.id}
-              className={selectedPositionId === pos.id ? 'row--selected' : ''}
-              onClick={() => setSelectedPositionId(pos.id)}
-              onContextMenu={(e) => handleContextMenu(e, pos.id, pos.symbol, pos.exchange, pos.accountId)}
-            >
-              <td>
-                <span className="mono" style={{ fontWeight: 600 }}>{pos.symbol}</span>
-              </td>
-              <td>{pos.accountName}</td>
-              <td>
-                <span className={`side-tag side-tag--${pos.side}`}>
-                  {pos.side === 'long' ? 'Long' : 'Short'}
-                </span>
-              </td>
-              <td>
-                {pos.marginMode && <span className="margin-tag">{pos.marginMode}</span>}
-              </td>
-              <td className="num">{fmtNumber(tokenSize, 4)}</td>
-              <td className="num">{fmtCurrency(pos.entryPrice)}</td>
-              <td className="num">{pos.markPrice != null ? fmtCurrency(pos.markPrice) : '—'}</td>
-              <td className="num">
-                {pos.liquidationPrice != null ? fmtCurrency(pos.liquidationPrice) : '—'}
-                {pos.riskSource === 'local_engine' && <span className="risk-chip">est.</span>}
-                {pos.riskSource === 'user_input' && <span className="risk-chip">manual</span>}
-              </td>
-              <td className="num" style={{ color: pos.takeProfit ? 'var(--green)' : undefined }}>
-                {pos.takeProfit != null ? fmtCurrency(pos.takeProfit) : '—'}
-              </td>
-              <td className="num" style={{ color: pos.stopLoss ? 'var(--red)' : undefined }}>
-                {pos.stopLoss != null ? fmtCurrency(pos.stopLoss) : '—'}
-              </td>
-              <td className="num">{pos.leverage}×</td>
-              <td className="num">{pos.marginUsed != null ? fmtCurrency(pos.marginUsed) : '—'}</td>
-              <td className={`num ${fmtPnlClass(pos.unrealizedPnl)}`}>
-                {fmtPnl(pos.unrealizedPnl)}
-              </td>
-              <td className="num">{fmtCurrency(notional)}</td>
-            </tr>
-          );
-        })}
+        {rows.map((row) => (
+          <tr
+            key={row.pos.id}
+            className={selectedPositionId === row.pos.id ? 'row--selected' : ''}
+            onClick={() => setSelectedPositionId(row.pos.id)}
+            onContextMenu={(e) => handleContextMenu(e, row.pos.id, row.pos.symbol, row.pos.exchange, row.pos.accountId)}
+          >
+            {visibleColumns.map((column) => {
+              const definition = positionColumnDefinitions[column];
+              return (
+                <td key={column} className={definition.numeric ? 'num' : undefined}>
+                  {definition.render(row)}
+                </td>
+              );
+            })}
+          </tr>
+        ))}
       </tbody>
       {confirmDeleteId && (
         <tfoot>
           <tr>
-            <td colSpan={14}>
+            <td colSpan={visibleColumns.length}>
               <div className="inline-confirm">
                 <span>Delete position "{positions.find((p) => p.id === confirmDeleteId)?.symbol}"?</span>
                 <button className="btn btn--danger btn--small" onClick={() => {

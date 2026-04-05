@@ -883,7 +883,7 @@ impl PortfolioRepository {
             position.exchange_symbol.as_deref(),
             Some(&position.symbol),
         )?;
-        let close_fee = input.fee_paid.unwrap_or(0.0).max(0.0);
+        let close_fee = input.fee_paid.unwrap_or(0.0);
         let close_funding = input.funding_paid.unwrap_or(0.0);
         let closed_at = input.closed_at.unwrap_or_else(Utc::now);
         let realized_pnl =

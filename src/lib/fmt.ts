@@ -1,4 +1,4 @@
-import type { ExchangeKind, SyncHealthState } from './types';
+import type { ExchangeKind, ExchangeMarket, SyncHealthState } from './types';
 
 export function fmtCurrency(n: number | null | undefined): string {
   if (n == null) return '—';
@@ -7,6 +7,21 @@ export function fmtCurrency(n: number | null | undefined): string {
     currency: 'USD',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
+  }).format(n);
+}
+
+export function fmtCompactCurrency(
+  n: number | null | undefined,
+): string {
+  if (n == null) return '—';
+  const absolute = Math.abs(n);
+  const integerDigits = absolute >= 1 ? Math.floor(absolute).toString().length : 1;
+  const maximumFractionDigits = Math.min(2, Math.max(0, 5 - integerDigits));
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits,
   }).format(n);
 }
 
@@ -20,6 +35,12 @@ export function fmtPnlClass(n: number): string {
   return n >= 0 ? 'pnl-positive' : 'pnl-negative';
 }
 
+export function fmtCostClass(n: number): string {
+  if (n < 0) return 'pnl-positive';
+  if (n > 0) return 'pnl-negative';
+  return '';
+}
+
 export function fmtPercent(n: number | null | undefined): string {
   if (n == null) return '—';
   return `${n.toFixed(2)}%`;
@@ -31,6 +52,47 @@ export function fmtNumber(n: number | null | undefined, decimals = 2): string {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   }).format(n);
+}
+
+export function fmtCompactNumber(n: number | null | undefined, decimals = 4): string {
+  if (n == null) return '—';
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: decimals,
+  }).format(n);
+}
+
+function normalizeMarketId(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const normalized = value.trim().toUpperCase();
+  if (!normalized) return null;
+  return normalized.replace(/[^A-Z0-9]/g, '');
+}
+
+export function findExchangeMarket(
+  markets: ExchangeMarket[],
+  exchange: ExchangeKind,
+  symbol: string | null | undefined,
+  exchangeSymbol?: string | null,
+): ExchangeMarket | undefined {
+  const scopedMarkets = markets.filter((market) => market.exchange === exchange);
+  const directExchangeSymbol = exchangeSymbol?.trim();
+  if (directExchangeSymbol) {
+    const match = scopedMarkets.find((market) => market.exchangeSymbol.localeCompare(directExchangeSymbol, undefined, { sensitivity: 'accent' }) === 0);
+    if (match) return match;
+  }
+
+  const directSymbol = symbol?.trim();
+  if (directSymbol) {
+    const match = scopedMarkets.find((market) => market.symbol.localeCompare(directSymbol, undefined, { sensitivity: 'accent' }) === 0);
+    if (match) return match;
+  }
+
+  const candidates = [normalizeMarketId(exchangeSymbol), normalizeMarketId(symbol)].filter((value): value is string => Boolean(value));
+  return scopedMarkets.find((market) => {
+    const aliases = [normalizeMarketId(market.exchangeSymbol), normalizeMarketId(market.symbol)];
+    return candidates.some((candidate) => aliases.includes(candidate));
+  });
 }
 
 export function fmtRelativeTime(iso: string | null | undefined): string {

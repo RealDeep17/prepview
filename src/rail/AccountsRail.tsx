@@ -108,12 +108,9 @@ export function AccountsRail() {
               {/* Header */}
               <div className="account-header">
                 <span className="account-name">{account.name}</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <div className="account-header-meta">
                   {acctPositions.length > 0 && (
-                    <span style={{
-                      fontSize: 9, padding: '1px 4px', borderRadius: 3,
-                      background: 'rgba(255,255,255,0.07)', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)'
-                    }}>{acctPositions.length}p</span>
+                    <span className="account-pos-count">{acctPositions.length}p</span>
                   )}
                   <span className={exchangeTagClass(account.exchange)}>{account.exchange}</span>
                 </div>

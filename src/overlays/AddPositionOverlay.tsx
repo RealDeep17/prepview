@@ -1,10 +1,30 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAppStore } from '../store/appStore';
 import { addManualPosition, getExchangeMarkets, getExchangeMarketQuote } from '../lib/bridge';
-import { fmtCurrency } from '../lib/fmt';
+import { findExchangeMarket, fmtCompactCurrency } from '../lib/fmt';
 import type { ExchangeKind, ExchangeMarket, PositionSide, MarginMode } from '../lib/types';
 
 type QuantityMode = 'contract' | 'token' | 'usd';
+
+function convertQuantityValue(
+  value: string,
+  oldMode: QuantityMode,
+  newMode: QuantityMode,
+  faceValue: number,
+  entryPrice: number,
+): string {
+  if (!value || Number.isNaN(parseFloat(value))) return value;
+
+  let rawContracts = parseFloat(value);
+  if (oldMode === 'token') rawContracts = rawContracts / faceValue;
+  else if (oldMode === 'usd') rawContracts = rawContracts / (entryPrice * faceValue);
+
+  let nextValue = rawContracts;
+  if (newMode === 'token') nextValue = rawContracts * faceValue;
+  else if (newMode === 'usd') nextValue = rawContracts * faceValue * entryPrice;
+
+  return String(Number(nextValue.toFixed(8)));
+}
 
 export function AddPositionOverlay() {
   const closeOverlay = useAppStore((s) => s.closeOverlay);
@@ -32,6 +52,7 @@ export function AddPositionOverlay() {
   const [takeProfit, setTakeProfit] = useState('');
   const [stopLoss, setStopLoss] = useState('');
   const [notes, setNotes] = useState('');
+  const [showAutoFields, setShowAutoFields] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -81,12 +102,8 @@ export function AddPositionOverlay() {
       : []
   ), [activeMarkets, query]);
   const selectedMarket = useMemo(
-    () => activeMarkets.find(
-      (market) =>
-        market.symbol.toUpperCase() === symbol.trim().toUpperCase() &&
-        market.exchange.toLowerCase() === exchange.toLowerCase(),
-    ),
-    [activeMarkets, exchange, symbol],
+    () => findExchangeMarket(activeMarkets, exchange, symbol, exchangeSymbol),
+    [activeMarkets, exchange, exchangeSymbol, symbol],
   );
 
   const handleSelectMarket = (market: ExchangeMarket) => {
@@ -127,6 +144,14 @@ export function AddPositionOverlay() {
     } else if (e.key === 'Escape') {
       setShowAc(false);
     }
+  };
+
+  const handleModeSwitch = (newMode: QuantityMode) => {
+    if (newMode === quantityMode) return;
+    const faceValue = selectedMarket?.contractValue ?? 1.0;
+    const entryPx = parseFloat(entryPrice) || 1.0;
+    setQuantity(convertQuantityValue(quantity, quantityMode, newMode, faceValue, entryPx));
+    setQuantityMode(newMode);
   };
 
   const handleSubmit = async () => {
@@ -233,7 +258,7 @@ export function AddPositionOverlay() {
                         <strong>{m.symbol}</strong>
                         <span style={{ marginLeft: 6, color: 'var(--text-muted)', fontSize: 10 }}>{m.exchangeSymbol}</span>
                       </span>
-                      <span className="mark">{m.markPrice != null ? fmtCurrency(m.markPrice) : '—'}</span>
+                      <span className="mark">{m.markPrice != null ? fmtCompactCurrency(m.markPrice) : '—'}</span>
                     </div>
                   )) : (
                     <div className="symbol-ac-empty">
@@ -281,17 +306,17 @@ export function AddPositionOverlay() {
                 <button 
                   type="button"
                   style={{ fontSize: 10, padding: '2px 6px', background: quantityMode === 'token' ? 'rgba(255,255,255,0.1)' : 'transparent', color: quantityMode === 'token' ? '#fff' : 'var(--text-muted)', border: 'none', borderRadius: 2, cursor: 'pointer' }}
-                  onClick={() => setQuantityMode('token')}
+                  onClick={() => handleModeSwitch('token')}
                 >Token</button>
-                <button 
+                <button
                   type="button"
                   style={{ fontSize: 10, padding: '2px 6px', background: quantityMode === 'usd' ? 'rgba(255,255,255,0.1)' : 'transparent', color: quantityMode === 'usd' ? '#fff' : 'var(--text-muted)', border: 'none', borderRadius: 2, cursor: 'pointer' }}
-                  onClick={() => setQuantityMode('usd')}
+                  onClick={() => handleModeSwitch('usd')}
                 >USD</button>
-                <button 
+                <button
                   type="button"
                   style={{ fontSize: 10, padding: '2px 6px', background: quantityMode === 'contract' ? 'rgba(255,255,255,0.1)' : 'transparent', color: quantityMode === 'contract' ? '#fff' : 'var(--text-muted)', border: 'none', borderRadius: 2, cursor: 'pointer' }}
-                  onClick={() => setQuantityMode('contract')}
+                  onClick={() => handleModeSwitch('contract')}
                 >Cont</button>
               </div>
             </div>
@@ -303,27 +328,39 @@ export function AddPositionOverlay() {
           </div>
         </div>
 
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">Mark Price</label>
-            <input className="form-input" type="number" step="any" value={markPrice} onChange={(e) => setMarkPrice(e.target.value)} placeholder="Auto" />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Margin Used</label>
-            <input className="form-input" type="number" step="any" value={marginUsed} onChange={(e) => setMarginUsed(e.target.value)} placeholder="Auto" />
-          </div>
-        </div>
+        <button
+          type="button"
+          className="btn btn--ghost btn--small form-section-toggle"
+          onClick={() => setShowAutoFields((value) => !value)}
+        >
+          {showAutoFields ? 'Hide Auto-Fetched Fields' : 'Show Auto-Fetched Fields'}
+        </button>
 
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">Liquidation Price</label>
-            <input className="form-input" type="number" step="any" value={liquidationPrice} onChange={(e) => setLiquidationPrice(e.target.value)} placeholder="Optional" />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Maint. Margin</label>
-            <input className="form-input" type="number" step="any" value={maintenanceMargin} onChange={(e) => setMaintenanceMargin(e.target.value)} placeholder="Optional" />
-          </div>
-        </div>
+        {showAutoFields && (
+          <>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Mark Price</label>
+                <input className="form-input" type="number" step="any" value={markPrice} onChange={(e) => setMarkPrice(e.target.value)} placeholder="Auto" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Margin Used</label>
+                <input className="form-input" type="number" step="any" value={marginUsed} onChange={(e) => setMarginUsed(e.target.value)} placeholder="Auto" />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Liquidation Price</label>
+                <input className="form-input" type="number" step="any" value={liquidationPrice} onChange={(e) => setLiquidationPrice(e.target.value)} placeholder="Optional" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Maint. Margin</label>
+                <input className="form-input" type="number" step="any" value={maintenanceMargin} onChange={(e) => setMaintenanceMargin(e.target.value)} placeholder="Optional" />
+              </div>
+            </div>
+          </>
+        )}
 
         <div className="form-row">
           <div className="form-group">
