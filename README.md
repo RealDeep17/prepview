@@ -36,6 +36,16 @@ PrepView is being prepared for desktop release only:
 
 iPhone, iPad, and Android are not in scope for the first public release.
 
+## Installation
+
+Download the latest version from the [Releases](https://github.com/RealDeep17/prepview/releases) page.
+
+- **macOS:** If Gatekeeper says the app is "damaged", it's due to missing code signing. Move the app to your `Applications` folder and run this in your terminal:
+  ```bash
+  xattr -cr /Applications/PrepView.app
+  ```
+- **Windows:** If SmartScreen shows a "Windows protected your PC" warning, click **More info** then **Run anyway**.
+
 ## Getting Started
 
 ```bash
